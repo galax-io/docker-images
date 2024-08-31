@@ -1,10 +1,10 @@
 name: Galaxio Docker Images Building
 
 on:
-  pull_request:
-    branches: [ '**' ]
   push:
-    tags: [ v* ]
+    branches:
+      - main
+    tags: [ * ]
 
 env:
   KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=24h"
@@ -17,8 +17,9 @@ jobs:
     permissions:
       contents: read # read the repository
     steps:
-      - name: Test Build with kaniko
+      - name: Build and Push Image to docker registry with kaniko
         run: |
           /kaniko/executor --dockerfile="Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
+            ${{ env.KANIKO_CACHE_ARGS }} \
             --no-push

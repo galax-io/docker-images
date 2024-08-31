@@ -6,20 +6,16 @@ on:
       - main
     tags: [ * ]
 
-env:
-  KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=24h"
-
 jobs:
-  build-test:
+  test-build:
     runs-on: ubuntu-22.04
     container:
       image: gcr.io/kaniko-project/executor:v1.20.0-debug
     permissions:
       contents: read # read the repository
     steps:
-      - name: Build and Push Image to docker registry with kaniko
+      - name: Test Build with kaniko
         run: |
           /kaniko/executor --dockerfile="Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
-            ${{ env.KANIKO_CACHE_ARGS }} \
             --no-push

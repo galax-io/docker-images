@@ -8,7 +8,7 @@ env:
   KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=24h"
 
 jobs:
-  build-test:
+  test-build:
     runs-on: ubuntu-22.04
     container:
       image: gcr.io/kaniko-project/executor:v1.20.0-debug
@@ -19,10 +19,26 @@ jobs:
         run: |
           /kaniko/executor --dockerfile="Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
-            --destination="$DOCKER_IMAGE_NAME:$(echo ${GITHUB_SHA} | head  -c 7)" \
-            ${{ env.KANIKO_CACHE_ARGS }} \
             --no-push
+      - name: Build and Push Image to docker registry with kaniko
+        run: |
+          cat <<EOF > /kaniko/.docker/config.json
+          {
+            "auths": {
+              "https://index.docker.io/v1/": {
+                "auth": "$(echo -n "${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }}" | base64 )"
+              }
+            }
+          }
+          EOF
+          
+          /kaniko/executor --dockerfile="Dockerfile" \
+            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
+            --destination="$DOCKER_IMAGE_NAME:master" \
+            --destination="$DOCKER_IMAGE_NAME:latest" \
+            ${{ env.KANIKO_CACHE_ARGS }} \
+            --push-retry 5
         env:
           GIT_USERNAME: ${{ github.actor }}
           GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          DOCKER_IMAGE_NAME: "<docker-username>/nginx"
+          DOCKER_IMAGE_NAME: "galaxio/base-image"

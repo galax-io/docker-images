@@ -20,8 +20,10 @@ jobs:
       - name: Test Build with kaniko
         run: |
           /kaniko/executor --dockerfile="Dockerfile" \
-            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
-            --no-push
+            --context="${{ github.repositoryUrl }}#${{ github.head_ref }}"
+            --no-push \
+            --debug
+#            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
         #            --destination="$DOCKER_IMAGE_NAME:$(echo ${GITHUB_SHA} | head  -c 7)" \
         #            ${{ env.KANIKO_CACHE_ARGS }} \
 

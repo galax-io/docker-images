@@ -53,4 +53,4 @@ jobs:
         env:
           GIT_USERNAME: ${{ github.actor }}
           GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          DOCKER_IMAGE_NAME: "galaxio/base-image"
+          DOCKER_IMAGE_NAME: "galaxioteam/base"

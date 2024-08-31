@@ -20,7 +20,7 @@ jobs:
       - name: Test Build with kaniko
         run: |
           /kaniko/executor --dockerfile="Dockerfile" \
-            --context="${{ github.repositoryUrl }}#${{ github.head_ref }}"
+            --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
             --no-push \
             --debug
 #            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \

@@ -44,8 +44,6 @@ jobs:
           }
           EOF
           
-          rm -rf .git
-          
           /kaniko/executor --dockerfile="Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
             --destination="$DOCKER_IMAGE_NAME:master" \

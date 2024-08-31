@@ -8,7 +8,7 @@ on:
       - '*'
 
 env:
-  KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=24h"
+  KANIKO_CACHE_ARGS: "--cache=true --cache-repo galaxioteam/base-cache --cache-copy-layers=true --cache-ttl=24h"
 
 jobs:
   test-build:

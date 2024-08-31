@@ -1,8 +1,10 @@
 name: Galaxio Docker Images Building
 
 on:
-  pull_request:
-    branches: [ '**' ]
+  push:
+    branches:
+      - main
+    tags: [ * ]
 
 env:
   KANIKO_CACHE_ARGS: "--cache=true --cache-copy-layers=true --cache-ttl=24h"

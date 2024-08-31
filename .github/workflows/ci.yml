@@ -25,7 +25,7 @@ jobs:
         #            --destination="$DOCKER_IMAGE_NAME:$(echo ${GITHUB_SHA} | head  -c 7)" \
         #            ${{ env.KANIKO_CACHE_ARGS }} \
 
-        env:
-          GIT_USERNAME: ${{ github.actor }}
-          GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          DOCKER_IMAGE_NAME: "<docker-username>/nginx"
+#        env:
+#          GIT_USERNAME: ${{ github.actor }}
+#          GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+#          DOCKER_IMAGE_NAME: "<docker-username>/nginx"

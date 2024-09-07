@@ -14,6 +14,6 @@ COPY --from=fat /opt/java/openjdk/ /opt/java/openjdk/
 ENV PATH=/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV JAVA_HOME=/opt/java/openjdk
 
-RUN java --version
+RUN /bin/sh -c set -eux; echo "Verifying install ..."; fileEncoding="$(echo 'System.out.println(System.getProperty("file.encoding"))' | jshell -s -)"; [ "$fileEncoding" = 'UTF-8' ]; rm -rf ~/.java; echo "javac --version"; javac --version; echo "java --version"; java --version; echo "Complete."
 
 ARG JAVA_OPTS_COMMON="-Dconfig.override_with_env_vars=true -Dfile.encoding=UTF-8"

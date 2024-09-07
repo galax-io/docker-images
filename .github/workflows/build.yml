@@ -24,7 +24,7 @@ jobs:
             --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
             --no-push \
             --cleanup
-  build:
+  base-build:
     runs-on: ubuntu-22.04
     container:
       image: gcr.io/kaniko-project/executor:v1.20.0-debug

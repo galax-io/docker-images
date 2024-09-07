@@ -1,11 +1,12 @@
 ARG JAVA_VERSION=21
+ARG BASE_VERSION=master
 
 FROM eclipse-temurin:${JAVA_VERSION}-jdk-jammy as fat
 
 LABEL maintainer="Galaxio Team"
 LABEL authors="i.akhaltsev"
 
-FROM galaxioteam/base:master
+FROM galaxioteam/base:${BASE_VERSION}
 
 COPY --from=fat /opt/java/openjdk/ /opt/java/openjdk/
 

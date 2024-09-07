@@ -46,7 +46,7 @@ jobs:
           
           /kaniko/executor --dockerfile="Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
-            --destination="$DOCKER_IMAGE_NAME:master" \
+            --destination="$DOCKER_IMAGE_NAME:${GITHUB_REF##*/}" \
             --destination="$DOCKER_IMAGE_NAME:latest" \
             ${{ env.KANIKO_CACHE_ARGS }} \
             --push-retry 5

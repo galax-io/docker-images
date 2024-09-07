@@ -17,7 +17,6 @@ jobs:
       image: gcr.io/kaniko-project/executor:v1.20.0-debug
     permissions:
       contents: read # read the repository
-    needs: test-build
     steps:
       - name: Build and Push Image to docker registry with kaniko
         run: |

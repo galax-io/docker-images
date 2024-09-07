@@ -25,6 +25,6 @@ jobs:
           export IFS=''
           /kaniko/executor --dockerfile="java.Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
-            --build-arg "JAVA_VERSION=${{ matrix.java-version }}"
+            --build-arg "JAVA_VERSION=${{ matrix.java-version }}" \
             --no-push
 

@@ -11,19 +11,6 @@ env:
   KANIKO_CACHE_ARGS: "--cache=true --cache-repo galaxioteam/base-cache --cache-copy-layers=true --cache-ttl=24h"
 
 jobs:
-  test-build:
-    runs-on: ubuntu-22.04
-    container:
-      image: gcr.io/kaniko-project/executor:v1.20.0-debug
-    permissions:
-      contents: read # read the repository
-    steps:
-      - name: Test Build with kaniko
-        run: |
-          /kaniko/executor --dockerfile="Dockerfile" \
-            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
-            --no-push \
-            --cleanup
   base-build:
     runs-on: ubuntu-22.04
     container:
@@ -65,7 +52,7 @@ jobs:
     permissions:
       contents: read # read the repository
     steps:
-      - name: Test Java Build with kaniko
+      - name: Build Java and Push Image to docker registry with kaniko
         run: |
           cat <<EOF > /kaniko/.docker/config.json
           {

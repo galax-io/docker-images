@@ -19,6 +19,7 @@ jobs:
         run: |
           /kaniko/executor --dockerfile="Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
+            --cleanup \
             --no-push
       - name: Test Java Build with kaniko
         run: |

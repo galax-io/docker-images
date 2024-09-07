@@ -47,7 +47,7 @@ jobs:
     permissions:
       contents: read # read the repository
     steps:
-      - name: Test Java Build with kaniko
+      - name: Build Java ${{ matrix.java-version }} and Push Image to docker registry
         run: |
           cat <<EOF > /kaniko/.docker/config.json
           {

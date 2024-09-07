@@ -26,5 +26,6 @@ jobs:
           /kaniko/executor --dockerfile="java.Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
             --build-arg "JAVA_VERSION=${{ matrix.java-version }}" \
+            --cleanup \
             --no-push
 

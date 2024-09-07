@@ -65,7 +65,7 @@ jobs:
             --build-arg "BASE_VERSION=${GITHUB_SHA}" \
             --build-arg "JAVA_VERSION=${{ matrix.java-version }}" \
             --cleanup \
-            --destination="$DOCKER_IMAGE_NAME":"${{ matrix.java-version }}-${GITHUB_SHA}" \
+            --destination="$DOCKER_IMAGE_NAME:${{ matrix.java-version }}-${GITHUB_SHA}" \
             ${{ env.KANIKO_CACHE_ARGS }} \
             --push-retry 5
         env:

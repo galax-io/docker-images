@@ -6,14 +6,25 @@ on:
 
 jobs:
   test-build:
+    strategy:
+      matrix:
+        java-version: [ 17, 21 ]
     runs-on: ubuntu-22.04
     container:
       image: gcr.io/kaniko-project/executor:v1.20.0-debug
     permissions:
       contents: read # read the repository
     steps:
-      - name: Test Build with kaniko
+      - name: Test Base Build with kaniko
         run: |
           /kaniko/executor --dockerfile="Dockerfile" \
             --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
             --no-push
+      - name: Test Java Build with kaniko
+        run: |
+          export IFS=''
+          /kaniko/executor --dockerfile="java.Dockerfile" \
+            --context="${{ github.repositoryUrl }}#${{ github.head_ref }}" \
+            --build-arg "JAVA_VERSION=${{ matrix.java-version }}
+            --no-push
+

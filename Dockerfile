@@ -51,3 +51,5 @@ COPY --from=fat /usr/libexec /usr/libexec
 
 # Default to UTF-8 file.encoding
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8' TZ='UTC'
+
+RUN /bin/sh -c set -eux; echo "Verifying install ..."; fileEncoding="$(echo 'System.out.println(System.getProperty("file.encoding"))' | jshell -s -)"; [ "$fileEncoding" = 'UTF-8' ]; echo "Complete."

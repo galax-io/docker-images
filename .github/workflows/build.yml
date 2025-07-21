@@ -39,8 +39,8 @@ jobs:
           tags: |
             galaxioteam/base:latest
             galaxioteam/base:${{ github.ref_name }}
-          cache-from: $KANIKO_CACHE_ARGS
-          cache-to: $KANIKO_CACHE_ARGS,mode=max
+          cache-from: ${{ env.KANIKO_CACHE_ARGS }}
+          cache-to: ${{ env.KANIKO_CACHE_ARGS }},mode=max
   java-build:
     strategy:
       matrix:
@@ -72,8 +72,8 @@ jobs:
           tags: |
             galaxioteam/base-jdk:latest
             galaxioteam/base-jdk:${{ github.ref_name }}
-          cache-from: $KANIKO_CACHE_ARGS
-          cache-to: $KANIKO_CACHE_ARGS,mode=max
+          cache-from: ${{ env.KANIKO_CACHE_ARGS }}
+          cache-to: ${{ env.KANIKO_CACHE_ARGS }},mode=max
           build-args: |
             BASE_VERSION=${{ github.ref_name }}
             JAVA_VERSION=${{ matrix.java-version }}

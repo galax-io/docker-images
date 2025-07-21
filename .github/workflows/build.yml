@@ -13,67 +13,67 @@ env:
 
 jobs:
   base-build:
-    runs-on: ubuntu-22.04
-    container:
-      image: gcr.io/kaniko-project/executor:v1.20.0-debug
+    runs-on: ubuntu-24.04
     permissions:
-      contents: read # read the repository
+      contents: read
+      packages: write
     steps:
-      - name: Build and Push Image to docker registry with kaniko
-        run: |
-          cat <<EOF > /kaniko/.docker/config.json
-          {
-            "auths": {
-              "https://index.docker.io/v1/": {
-                "auth": "$(echo -n "${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }}" | base64 )"
-              }
-            }
-          }
-          EOF
-          
-          /kaniko/executor --dockerfile="Dockerfile" \
-            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
-            --destination="$DOCKER_IMAGE_NAME:${GITHUB_REF##*/}" \
-            --destination="$DOCKER_IMAGE_NAME:latest" \
-            ${{ env.KANIKO_CACHE_ARGS }} \
-            --push-retry 5
-        env:
-          GIT_USERNAME: ${{ github.actor }}
-          GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          DOCKER_IMAGE_NAME: "galaxioteam/base"
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            galaxioteam/base:latest
+            galaxioteam/base:${{ github.ref_name }}
+          cache-from: type=registry,ref=galaxioteam/base-cache:cache
+          cache-to: type=registry,ref=galaxioteam/base-cache:cache,mode=max
   java-build:
     strategy:
       matrix:
         java-version: [ 17, 21 ]
-    runs-on: ubuntu-22.04
-    container:
-      image: gcr.io/kaniko-project/executor:v1.20.0-debug
-    needs: base-build
+    runs-on: ubuntu-24.04
     permissions:
-      contents: read # read the repository
+      contents: read
+      packages: write
+    needs: base-build
     steps:
-      - name: Build Java and Push Image to docker registry with kaniko
-        run: |
-          cat <<EOF > /kaniko/.docker/config.json
-          {
-            "auths": {
-              "https://index.docker.io/v1/": {
-                "auth": "$(echo -n "${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }}" | base64 )"
-              }
-            }
-          }
-          EOF
-          
-          export IFS=''
-          /kaniko/executor --dockerfile="java.Dockerfile" \
-            --context="${{ github.repositoryUrl }}#${{ github.ref }}#${{ github.sha }}"  \
-            --build-arg "BASE_VERSION=${GITHUB_REF##*/}" \
-            --build-arg "JAVA_VERSION=${{ matrix.java-version }}" \
-            --cleanup \
-            --destination="$DOCKER_IMAGE_NAME:${{ matrix.java-version }}-${GITHUB_REF##*/}" \
-            ${{ env.KANIKO_CACHE_ARGS }} \
-            --push-retry 5
-        env:
-          GIT_USERNAME: ${{ github.actor }}
-          GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          DOCKER_IMAGE_NAME: "galaxioteam/base-jdk"
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Java ${{ matrix.java-version }} and Push Image to docker registry
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./java.Dockerfile
+          push: true
+          tags: |
+            galaxioteam/base-jdk:latest
+            galaxioteam/base-jdk:${{ github.ref_name }}
+          cache-from: type=registry,ref=galaxioteam/base-cache:cache
+          cache-to: type=registry,ref=galaxioteam/base-cache:cache,mode=max
+          build-args: |
+            BASE_VERSION=${{ github.ref_name }}
+            JAVA_VERSION=${{ matrix.java-version }}

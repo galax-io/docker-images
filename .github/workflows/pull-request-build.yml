@@ -35,7 +35,7 @@ jobs:
           push: true
           tags: |
             galaxioteam/base:latest
-            galaxioteam/base:${GITHUB_SHA}
+            galaxioteam/base:${{ github.sha }}
           cache-from: type=registry,ref=galaxioteam/base-cache:cache
           cache-to: type=registry,ref=galaxioteam/base-cache:cache,mode=max
   java-build:

@@ -1,6 +1,7 @@
 name: Galaxio Docker Images Building
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [ '**' ]
 

@@ -9,7 +9,7 @@ on:
       - '*'
 
 env:
-  KANIKO_CACHE_ARGS: "--cache=true --cache-repo galaxioteam/base-cache --cache-copy-layers=true --cache-ttl=24h"
+  KANIKO_CACHE_ARGS: type=registry,ref=galaxioteam/base-cache:cache
 
 jobs:
   base-build:
@@ -39,8 +39,8 @@ jobs:
           tags: |
             galaxioteam/base:latest
             galaxioteam/base:${{ github.ref_name }}
-          cache-from: type=registry,ref=galaxioteam/base-cache:cache
-          cache-to: type=registry,ref=galaxioteam/base-cache:cache,mode=max
+          cache-from: $KANIKO_CACHE_ARGS
+          cache-to: $KANIKO_CACHE_ARGS,mode=max
   java-build:
     strategy:
       matrix:
@@ -72,8 +72,8 @@ jobs:
           tags: |
             galaxioteam/base-jdk:latest
             galaxioteam/base-jdk:${{ github.ref_name }}
-          cache-from: type=registry,ref=galaxioteam/base-cache:cache
-          cache-to: type=registry,ref=galaxioteam/base-cache:cache,mode=max
+          cache-from: $KANIKO_CACHE_ARGS
+          cache-to: $KANIKO_CACHE_ARGS,mode=max
           build-args: |
             BASE_VERSION=${{ github.ref_name }}
             JAVA_VERSION=${{ matrix.java-version }}

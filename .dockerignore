@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+*.iml
+**/.DS_Store
+**/target
+**/build
+**/.bsp
+**/.cache
+**/.coursier
+**/.ivy2
+**/.sbt

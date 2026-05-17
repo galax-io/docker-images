@@ -128,7 +128,6 @@ jobs:
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
           sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
-          sudo install -m 0755 "${tmp_dir}/bin/buildctl-daemonless.sh" /usr/local/bin/buildctl-daemonless.sh
           buildctl --version
 
       - name: Log in to Docker Hub
@@ -198,7 +197,6 @@ jobs:
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
           sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
-          sudo install -m 0755 "${tmp_dir}/bin/buildctl-daemonless.sh" /usr/local/bin/buildctl-daemonless.sh
           buildctl --version
 
       - name: Log in to Docker Hub
@@ -271,7 +269,6 @@ jobs:
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
           sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
-          sudo install -m 0755 "${tmp_dir}/bin/buildctl-daemonless.sh" /usr/local/bin/buildctl-daemonless.sh
           buildctl --version
 
       - name: Log in to Docker Hub

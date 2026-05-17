@@ -27,6 +27,7 @@ image_names_csv="$(IFS=,; echo "${image_refs[*]}")"
 
 buildctl_args=(
   build
+  --addr "${BUILDKIT_ADDR:-unix:///tmp/buildkitd.sock}"
   --frontend=dockerfile.v0
   --local "context=${CONTEXT_DIR}"
   --local "dockerfile=${CONTEXT_DIR}"
@@ -47,5 +48,31 @@ echo "Building ${IMAGE_NAME} from ${DOCKERFILE_PATH}"
 printf 'Tags:\n%s\n' "${IMAGE_TAGS}"
 printf 'Cache ref: %s\n' "${CACHE_REF}"
 
-buildkit_runner="${BUILDKIT_RUNNER:-/usr/local/bin/buildctl-daemonless.sh}"
-"${buildkit_runner}" "${buildctl_args[@]}"
+buildkitd_bin="${BUILDKITD_BIN:-/usr/local/bin/buildkitd}"
+buildkit_addr="${BUILDKIT_ADDR:-unix:///tmp/buildkitd.sock}"
+buildkit_log="$(mktemp)"
+
+cleanup() {
+  if [[ -n "${buildkitd_pid:-}" ]] && kill -0 "${buildkitd_pid}" 2>/dev/null; then
+    kill "${buildkitd_pid}" 2>/dev/null || true
+    wait "${buildkitd_pid}" 2>/dev/null || true
+  fi
+  rm -f "${buildkit_log}"
+}
+
+trap cleanup EXIT
+
+"${buildkitd_bin}" --addr "${buildkit_addr}" >"${buildkit_log}" 2>&1 &
+buildkitd_pid=$!
+
+for _ in $(seq 1 30); do
+  if buildctl --addr "${buildkit_addr}" debug workers >/dev/null 2>&1; then
+    buildctl "${buildctl_args[@]}"
+    exit 0
+  fi
+  sleep 1
+done
+
+cat "${buildkit_log}" >&2
+echo "BuildKit daemon did not become ready" >&2
+exit 1

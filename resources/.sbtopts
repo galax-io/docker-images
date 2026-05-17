@@ -1,0 +1,7 @@
+-Dfile.encoding=UTF-8
+-Dsbt.ci=true
+-Dsbt.boot.directory="/home/sbtuser/.sbt/boot/"
+-Dsbt.coursier.home="/home/sbtuser/.sbt/.cache/coursier/v1"
+-Dsbt.global.base="/home/sbtuser/.sbt/"
+-Dcoursier.cache="/home/sbtuser/.sbt/.cache/coursier/v1"
+-Dsbt.ivy.home="/home/sbtuser/.sbt/.ivy2"

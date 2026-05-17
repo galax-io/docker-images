@@ -27,7 +27,7 @@ image_names_csv="$(IFS=,; echo "${image_refs[*]}")"
 
 buildctl_args=(
   build
-  --addr "${BUILDKIT_ADDR:-unix:///tmp/buildkitd.sock}"
+  --addr "${BUILDKIT_ADDR:-tcp://127.0.0.1:1234}"
   --frontend=dockerfile.v0
   --local "context=${CONTEXT_DIR}"
   --local "dockerfile=${CONTEXT_DIR}"
@@ -49,8 +49,13 @@ printf 'Tags:\n%s\n' "${IMAGE_TAGS}"
 printf 'Cache ref: %s\n' "${CACHE_REF}"
 
 buildkitd_bin="${BUILDKITD_BIN:-/usr/local/bin/buildkitd}"
-buildkit_addr="${BUILDKIT_ADDR:-unix:///tmp/buildkitd.sock}"
+buildkit_addr="${BUILDKIT_ADDR:-tcp://127.0.0.1:1234}"
 buildkit_log="$(mktemp)"
+buildkitd_cmd=("${buildkitd_bin}" --addr "${buildkit_addr}")
+
+if [[ "$(id -u)" -ne 0 ]] && command -v sudo >/dev/null 2>&1; then
+  buildkitd_cmd=(sudo -E "${buildkitd_cmd[@]}")
+fi
 
 cleanup() {
   if [[ -n "${buildkitd_pid:-}" ]] && kill -0 "${buildkitd_pid}" 2>/dev/null; then
@@ -62,7 +67,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-"${buildkitd_bin}" --addr "${buildkit_addr}" >"${buildkit_log}" 2>&1 &
+"${buildkitd_cmd[@]}" >"${buildkit_log}" 2>&1 &
 buildkitd_pid=$!
 
 for _ in $(seq 1 30); do

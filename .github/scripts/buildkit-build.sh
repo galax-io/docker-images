@@ -26,8 +26,8 @@ done
 image_names_csv="$(IFS=,; echo "${image_refs[*]}")"
 
 buildctl_args=(
-  build
   --addr "${BUILDKIT_ADDR:-tcp://127.0.0.1:1234}"
+  build
   --frontend=dockerfile.v0
   --local "context=${CONTEXT_DIR}"
   --local "dockerfile=${CONTEXT_DIR}"

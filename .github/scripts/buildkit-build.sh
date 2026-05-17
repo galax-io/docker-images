@@ -11,7 +11,10 @@ CONTEXT_DIR="${CONTEXT_DIR:-.}"
 PUSH_IMAGE="${PUSH_IMAGE:-true}"
 OUTPUT_FLAGS="${OUTPUT_FLAGS:-oci-mediatypes=true,name-canonical=true,push=${PUSH_IMAGE}}"
 
-mapfile -t tag_lines < <(printf '%s\n' "${IMAGE_TAGS}" | sed '/^[[:space:]]*$/d')
+tag_lines=()
+while IFS= read -r tag_line; do
+  tag_lines+=("${tag_line}")
+done < <(printf '%s\n' "${IMAGE_TAGS}" | sed '/^[[:space:]]*$/d')
 
 if [[ "${#tag_lines[@]}" -eq 0 ]]; then
   echo "No image tags provided" >&2
@@ -24,6 +27,7 @@ for tag in "${tag_lines[@]}"; do
 done
 
 image_names_csv="$(IFS=,; echo "${image_refs[*]}")"
+image_output="type=image,\"name=${image_names_csv}\",${OUTPUT_FLAGS}"
 
 buildctl_args=(
   --addr "${BUILDKIT_ADDR:-tcp://127.0.0.1:1234}"
@@ -34,7 +38,7 @@ buildctl_args=(
   --opt "filename=${DOCKERFILE_PATH}"
   --import-cache "type=registry,ref=${CACHE_REF}"
   --export-cache "type=registry,ref=${CACHE_REF},mode=max,image-manifest=true,oci-mediatypes=true"
-  --output "type=image,name=${image_names_csv},${OUTPUT_FLAGS}"
+  --output "${image_output}"
 )
 
 if [[ -n "${BUILD_ARGS:-}" ]]; then

@@ -1,28 +1,131 @@
-name: Galaxio Docker Images Building
+name: Galaxio Docker Images Release
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-    tags:
-      - '*'
+  workflow_dispatch:
 
 env:
-  KANIKO_CACHE_ARGS: type=registry,ref=galaxioteam/base-cache:cache
+  BUILDKIT_VERSION: v0.30.0
+  BUILD_CONTEXT: .
+  CACHE_REPOSITORY: galaxioteam/buildkit-cache
+  GATLING_VERSION: 3.11.5
+  GATLING_SBT_VERSION: 4.18.1
+  SBT_VERSION: 1.11.3
+  PICATINNY_VERSION: 1.10.3
+  GALAXIO_CLI_VERSION: 0.6.1
 
 jobs:
-  base-build:
+  prepare-release:
+    name: Prepare Release
     runs-on: ubuntu-24.04
     permissions:
+      contents: write
+    outputs:
+      last_tag: ${{ steps.bump.outputs.last_tag }}
+      release_tag: ${{ steps.bump.outputs.tag }}
+      release_version: ${{ steps.bump.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version and create git tag
+        id: bump
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force --prune
+
+          LAST_TAG="$(git describe --tags --abbrev=0 --match 'v*' --first-parent 2>/dev/null || true)"
+          echo "last_tag=${LAST_TAG}" >> "${GITHUB_OUTPUT}"
+
+          RANGE="${LAST_TAG:+${LAST_TAG}..HEAD}"
+          COMMITS="$(git log --pretty=format:%s ${RANGE})"
+          BUMP="patch"
+
+          if printf '%s\n' "${COMMITS}" | grep -Eiq 'BREAKING CHANGE|!:'; then
+            BUMP="major"
+          elif printf '%s\n' "${COMMITS}" | grep -Eiq '^feat(\(.+\))?:'; then
+            BUMP="minor"
+          fi
+
+          if [[ -z "${LAST_TAG}" ]]; then
+            MAJOR=0
+            MINOR=0
+            PATCH=0
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#v}"
+          fi
+
+          case "${BUMP}" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+
+          if git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
+            TAG_COMMIT="$(git rev-list -n 1 "${NEXT_TAG}")"
+            HEAD_COMMIT="$(git rev-parse HEAD)"
+
+            if [[ "${TAG_COMMIT}" == "${HEAD_COMMIT}" ]]; then
+              :
+            else
+              while git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; do
+                IFS='.' read -r MAJOR MINOR PATCH <<< "${NEXT_TAG#v}"
+                PATCH=$((PATCH + 1))
+                NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+              done
+            fi
+          fi
+
+          VERSION="${NEXT_TAG#v}"
+
+          echo "tag=${NEXT_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+
+          if ! git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
+            git tag -a "${NEXT_TAG}" -m "Release ${NEXT_TAG}"
+            git push origin "${NEXT_TAG}"
+          fi
+
+  build-base:
+    name: Build base
+    runs-on: ubuntu-24.04
+    needs: prepare-release
+    permissions:
       contents: read
-      packages: write
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up BuildKit
+        run: |
+          curl -fsSL \
+            "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
+            -o /tmp/buildkit.tgz
+          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          buildctl --version
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -30,32 +133,65 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and Push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            galaxioteam/base:latest
-            galaxioteam/base:${{ github.ref_name }}
-          cache-from: ${{ env.KANIKO_CACHE_ARGS }}
-          cache-to: ${{ env.KANIKO_CACHE_ARGS }},mode=max
-  java-build:
+      - name: Prepare build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
+          release_version="${{ needs.prepare-release.outputs.release_version }}"
+          image_name="galaxioteam/base"
+          dockerfile_path="Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:base"
+          image_tags=$'latest\n'"${release_version}"$'\n'"${release_tag}"
+          build_args=""
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image with BuildKit
+        env:
+          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh
+
+  build-java:
+    name: Build java ${{ matrix.java-version }}
+    runs-on: ubuntu-24.04
+    needs:
+      - prepare-release
+      - build-base
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
-        java-version: [ 17, 21 ]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-    needs: base-build
+        java-version: ['17', '21']
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up BuildKit
+        run: |
+          curl -fsSL \
+            "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
+            -o /tmp/buildkit.tgz
+          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          buildctl --version
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -63,17 +199,195 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Java ${{ matrix.java-version }} and Push Image to docker registry
-        uses: docker/build-push-action@v5
+      - name: Prepare build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
+          release_version="${{ needs.prepare-release.outputs.release_version }}"
+          image_name="galaxioteam/base-jdk"
+          dockerfile_path="java.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}"
+          image_tags="${{ matrix.java-version }}"$'\n'"${{ matrix.java-version }}-${release_version}"$'\n'"${{ matrix.java-version }}-${release_tag}"
+          build_args=$'BASE_VERSION='"${release_version}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image with BuildKit
+        env:
+          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh
+
+  build-gatling-images:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    needs: prepare-release
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - gatling-sbt-builder
+          - gatling-maven-builder
+          - gatling-gradle-builder
+          - gatling-runtime
+          - gatling-debug
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up BuildKit
+        run: |
+          curl -fsSL \
+            "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
+            -o /tmp/buildkit.tgz
+          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          buildctl --version
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
-          context: .
-          file: ./java.Dockerfile
-          push: true
-          tags: |
-            galaxioteam/base-jdk:latest
-            galaxioteam/base-jdk:${{ github.ref_name }}
-          cache-from: ${{ env.KANIKO_CACHE_ARGS }}
-          cache-to: ${{ env.KANIKO_CACHE_ARGS }},mode=max
-          build-args: |
-            BASE_VERSION=${{ github.ref_name }}
-            JAVA_VERSION=${{ matrix.java-version }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Prepare build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
+          release_version="${{ needs.prepare-release.outputs.release_version }}"
+
+          case "${{ matrix.target }}" in
+            gatling-sbt-builder)
+              image_name="galaxioteam/gatling-sbt-builder"
+              dockerfile_path="gatling-sbt-builder.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-sbt-builder"
+              image_tags=$'latest\n'"${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-sbt'
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"$'\nGATLING_SBT_VERSION='"${GATLING_SBT_VERSION}"$'\nSBT_VERSION='"${SBT_VERSION}"$'\nPICATINNY_VERSION='"${PICATINNY_VERSION}"$'\nGALAXIO_CLI_VERSION='"${GALAXIO_CLI_VERSION}"
+              ;;
+            gatling-maven-builder)
+              image_name="galaxioteam/gatling-maven-builder"
+              dockerfile_path="gatling-maven-builder.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-maven-builder"
+              image_tags=$'latest\n'"${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-maven'
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            gatling-gradle-builder)
+              image_name="galaxioteam/gatling-gradle-builder"
+              dockerfile_path="gatling-gradle-builder.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-gradle-builder"
+              image_tags=$'latest\n'"${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-gradle'
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            gatling-runtime)
+              image_name="galaxioteam/gatling-runtime"
+              dockerfile_path="gatling-runtime.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-runtime"
+              image_tags=$'latest\n'"${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            gatling-debug)
+              image_name="galaxioteam/gatling-debug"
+              dockerfile_path="gatling-debug.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-debug"
+              image_tags=$'latest\n'"${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            *)
+              echo "Unknown target: ${{ matrix.target }}" >&2
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image with BuildKit
+        env:
+          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh
+
+  changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-24.04
+    needs: prepare-release
+    permissions:
+      contents: read
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: Generate changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v6
+        with:
+          mode: COMMIT
+          fromTag: ${{ needs.prepare-release.outputs.last_tag }}
+          toTag: ${{ needs.prepare-release.outputs.release_tag }}
+          configuration: .github/changelog/release-changelog-builder.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-24.04
+    needs:
+      - prepare-release
+      - build-base
+      - build-java
+      - build-gatling-images
+      - changelog
+    permissions:
+      contents: write
+    steps:
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          body: |
+            ${{ needs.changelog.outputs.changelog }}
+
+            ## Docker images
+            - `galaxioteam/base:${{ needs.prepare-release.outputs.release_version }}`
+            - `galaxioteam/base-jdk:17-${{ needs.prepare-release.outputs.release_version }}`
+            - `galaxioteam/base-jdk:21-${{ needs.prepare-release.outputs.release_version }}`
+            - `galaxioteam/gatling-sbt-builder:${{ needs.prepare-release.outputs.release_version }}`
+            - `galaxioteam/gatling-maven-builder:${{ needs.prepare-release.outputs.release_version }}`
+            - `galaxioteam/gatling-gradle-builder:${{ needs.prepare-release.outputs.release_version }}`
+            - `galaxioteam/gatling-runtime:${{ needs.prepare-release.outputs.release_version }}`
+            - `galaxioteam/gatling-debug:${{ needs.prepare-release.outputs.release_version }}`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

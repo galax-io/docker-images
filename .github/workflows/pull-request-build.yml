@@ -1,25 +1,38 @@
-name: Galaxio Docker Images Building
+name: Galaxio Docker Images Pull Request
 
 on:
   workflow_dispatch:
   pull_request:
-    branches: [ '**' ]
+    branches:
+      - '**'
 
 env:
-  KANIKO_CACHE_ARGS: type=registry,ref=galaxioteam/base-cache:cache
+  BUILDKIT_VERSION: v0.30.0
+  BUILD_CONTEXT: .
+  CACHE_REPOSITORY: galaxioteam/buildkit-cache
+  GATLING_VERSION: 3.11.5
+  GATLING_SBT_VERSION: 4.18.1
+  SBT_VERSION: 1.11.3
+  PICATINNY_VERSION: 1.10.3
+  GALAXIO_CLI_VERSION: 0.6.1
 
 jobs:
-  base-build:
+  build-base:
+    name: Build base
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      packages: write
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up BuildKit
+        run: |
+          curl -fsSL \
+            "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
+            -o /tmp/buildkit.tgz
+          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          buildctl --version
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -27,32 +40,62 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and Push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            galaxioteam/base:latest
-            galaxioteam/base:${{ github.sha }}
-          cache-from: ${{ env.KANIKO_CACHE_ARGS }}
-          cache-to: ${{ env.KANIKO_CACHE_ARGS }},mode=max
-  java-build:
+      - name: Prepare build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha_tag="${GITHUB_SHA}"
+          image_name="galaxioteam/base"
+          dockerfile_path="Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:base-pr"
+          image_tags="${sha_tag}"
+          build_args=""
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image with BuildKit
+        env:
+          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh
+
+  build-java:
+    name: Build java ${{ matrix.java-version }}
+    runs-on: ubuntu-24.04
+    needs: build-base
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
-        java-version: [ 17, 21 ]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-    needs: base-build
+        java-version: ['17', '21']
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up BuildKit
+        run: |
+          curl -fsSL \
+            "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
+            -o /tmp/buildkit.tgz
+          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          buildctl --version
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -60,17 +103,141 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Java ${{ matrix.java-version }} and Push Image to docker registry
-        uses: docker/build-push-action@v5
+      - name: Prepare build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha_tag="${GITHUB_SHA}"
+          image_name="galaxioteam/base-jdk"
+          dockerfile_path="java.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}-pr"
+          image_tags="${{ matrix.java-version }}-${sha_tag}"
+          build_args=$'BASE_VERSION='"${sha_tag}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image with BuildKit
+        env:
+          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh
+
+  build-gatling-images:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - gatling-sbt-builder
+          - gatling-maven-builder
+          - gatling-gradle-builder
+          - gatling-runtime
+          - gatling-debug
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up BuildKit
+        run: |
+          curl -fsSL \
+            "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
+            -o /tmp/buildkit.tgz
+          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          buildctl --version
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
-          context: .
-          file: ./java.Dockerfile
-          push: true
-          tags: |
-            galaxioteam/base-jdk:latest
-            galaxioteam/base-jdk:${{ github.sha }}
-          cache-from: ${{ env.KANIKO_CACHE_ARGS }}
-          cache-to: ${{ env.KANIKO_CACHE_ARGS }},mode=max
-          build-args: |
-            BASE_VERSION=${{ github.sha }}
-            JAVA_VERSION=${{ matrix.java-version }}  
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Prepare build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha_tag="${GITHUB_SHA}"
+
+          case "${{ matrix.target }}" in
+            gatling-sbt-builder)
+              image_name="galaxioteam/gatling-sbt-builder"
+              dockerfile_path="gatling-sbt-builder.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-sbt-builder-pr"
+              image_tags="${sha_tag}"
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"$'\nGATLING_SBT_VERSION='"${GATLING_SBT_VERSION}"$'\nSBT_VERSION='"${SBT_VERSION}"$'\nPICATINNY_VERSION='"${PICATINNY_VERSION}"$'\nGALAXIO_CLI_VERSION='"${GALAXIO_CLI_VERSION}"
+              ;;
+            gatling-maven-builder)
+              image_name="galaxioteam/gatling-maven-builder"
+              dockerfile_path="gatling-maven-builder.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-maven-builder-pr"
+              image_tags="${sha_tag}"
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            gatling-gradle-builder)
+              image_name="galaxioteam/gatling-gradle-builder"
+              dockerfile_path="gatling-gradle-builder.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-gradle-builder-pr"
+              image_tags="${sha_tag}"
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            gatling-runtime)
+              image_name="galaxioteam/gatling-runtime"
+              dockerfile_path="gatling-runtime.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-runtime-pr"
+              image_tags="${sha_tag}"
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            gatling-debug)
+              image_name="galaxioteam/gatling-debug"
+              dockerfile_path="gatling-debug.Dockerfile"
+              cache_ref="${CACHE_REPOSITORY}:gatling-debug-pr"
+              image_tags="${sha_tag}"
+              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+              ;;
+            *)
+              echo "Unknown target: ${{ matrix.target }}" >&2
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image with BuildKit
+        env:
+          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh

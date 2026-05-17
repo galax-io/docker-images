@@ -47,4 +47,5 @@ echo "Building ${IMAGE_NAME} from ${DOCKERFILE_PATH}"
 printf 'Tags:\n%s\n' "${IMAGE_TAGS}"
 printf 'Cache ref: %s\n' "${CACHE_REF}"
 
-buildctl-daemonless.sh "${buildctl_args[@]}"
+buildkit_runner="${BUILDKIT_RUNNER:-/usr/local/bin/buildctl-daemonless.sh}"
+"${buildkit_runner}" "${buildctl_args[@]}"

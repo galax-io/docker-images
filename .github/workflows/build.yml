@@ -28,7 +28,7 @@ jobs:
       release_version: ${{ steps.bump.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -117,14 +117,14 @@ jobs:
       contents: read
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up BuildKit
         run: |
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
-          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          sudo tar -C /usr/local/bin --strip-components=1 -xzf /tmp/buildkit.tgz
           buildctl --version
 
       - name: Log in to Docker Hub
@@ -183,14 +183,14 @@ jobs:
         java-version: ['17', '21']
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up BuildKit
         run: |
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
-          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          sudo tar -C /usr/local/bin --strip-components=1 -xzf /tmp/buildkit.tgz
           buildctl --version
 
       - name: Log in to Docker Hub
@@ -252,14 +252,14 @@ jobs:
           - gatling-debug
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up BuildKit
         run: |
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
-          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/buildkit.tgz
+          sudo tar -C /usr/local/bin --strip-components=1 -xzf /tmp/buildkit.tgz
           buildctl --version
 
       - name: Log in to Docker Hub

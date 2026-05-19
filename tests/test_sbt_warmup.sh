@@ -30,6 +30,7 @@ run_case() {
   case_name="$1"
   registry="$2"
   template_name="$3"
+  archive_url="$4"
 
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT INT TERM
@@ -41,6 +42,32 @@ run_case() {
   values_snapshot="${tmpdir}/warmup-values.snapshot"
 
   mkdir -p "${mockbin}" "${workdir}" "${sbt_home}"
+
+  archive_root="${tmpdir}/archive-root"
+  archive_payload="${tmpdir}/templates.tar.gz"
+  mkdir -p "${archive_root}/galaxio-pack/scala-sbt/files"
+  cat > "${archive_root}/galaxio-pack/galaxio-pack.yaml" <<'EOF'
+apiVersion: galaxio.io/v1
+kind: TemplatePack
+name: gatling
+version: 0.0.0
+templates:
+  - name: scala-sbt
+    version: 0.0.0
+    path: scala-sbt
+EOF
+  cat > "${archive_root}/galaxio-pack/scala-sbt/galaxio-template.yaml" <<'EOF'
+apiVersion: galaxio.io/v1
+kind: Template
+name: scala-sbt
+engine: go-template
+inputs: {}
+files:
+  - from: files
+    to: .
+EOF
+  printf 'warmup\n' > "${archive_root}/galaxio-pack/scala-sbt/files/README.md"
+  tar -C "${archive_root}" -czf "${archive_payload}" galaxio-pack
 
   cat > "${mockbin}/galaxio" <<'EOF'
 #!/usr/bin/env sh
@@ -68,6 +95,14 @@ fi
 EOF
   chmod +x "${mockbin}/galaxio"
 
+  cat > "${mockbin}/curl" <<'EOF'
+#!/usr/bin/env sh
+set -eu
+printf 'curl|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
+cat "${TEST_ARCHIVE_FILE}"
+EOF
+  chmod +x "${mockbin}/curl"
+
   cat > "${mockbin}/sbt" <<'EOF'
 #!/usr/bin/env sh
 set -eu
@@ -83,12 +118,16 @@ EOF
     PATH="${mockbin}:${PATH}" \
     TEST_LOG_FILE="${log_file}" \
     TEST_VALUES_SNAPSHOT="${values_snapshot}" \
+    TEST_ARCHIVE_FILE="${archive_payload}" \
     SBT_HOME="${sbt_home}" \
     COURSIER_CACHE="${sbt_home}/coursier-cache" \
-    GALAXIO_TEMPLATE_REGISTRY="${registry}" \
-    GALAXIO_TEMPLATE_NAME="${template_name}" \
     GALAXIO_WARMUP_DIR="warmup-project" \
     GALAXIO_WARMUP_VALUES_FILE="warmup-values.yaml" \
+    GALAXIO_TEMPLATE_REGISTRY="${registry}" \
+    GALAXIO_TEMPLATE_NAME="${template_name}" \
+    GALAXIO_TEMPLATES_ARCHIVE_URL="${archive_url}" \
+    GALAXIO_TEMPLATE_REGISTRY_DIR="warmup-registry" \
+    GALAXIO_TEMPLATES_DIR="warmup-templates" \
     sh "${SCRIPT}" 1.11.3 3.13.5 1.12.0 4.18.1
   )
 
@@ -104,6 +143,8 @@ EOF
 
   assert_not_exists "${workdir}/warmup-project"
   assert_not_exists "${workdir}/warmup-values.yaml"
+  assert_not_exists "${workdir}/warmup-registry"
+  assert_not_exists "${workdir}/warmup-templates"
   assert_not_exists "${sbt_home}/boot/bootstrap.lock"
 
   rm -rf "${tmpdir}"
@@ -111,5 +152,5 @@ EOF
   printf 'PASS: %s\n' "${case_name}"
 }
 
-run_case "default-style override" "github:galax-io/galaxio-template-registry" "github:galax-io/templates-gatling#v0.13.0/scala-sbt"
-run_case "custom registry and template" "local:/tmp/custom-registry" "custom/scala-sbt"
+run_case "local bootstrap defaults" "local:./warmup-registry" "gatling/scala-sbt" "https://example.invalid/templates-gatling.tar.gz"
+run_case "custom registry and template" "local:/tmp/custom-registry" "custom/scala-sbt" ""

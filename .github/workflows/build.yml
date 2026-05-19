@@ -23,6 +23,7 @@ jobs:
     name: Prepare Release
     runs-on: ubuntu-24.04
     permissions:
+      actions: write
       contents: write
     outputs:
       last_tag: ${{ steps.bump.outputs.last_tag }}
@@ -44,7 +45,7 @@ jobs:
 
           git fetch --tags --force --prune
 
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             CURRENT_TAG="${GITHUB_REF_NAME}"
             LAST_TAG="$(git tag --sort=-version:refname --list 'v*' | grep -Fxv "${CURRENT_TAG}" | head -n 1 || true)"
 
@@ -119,13 +120,17 @@ jobs:
           if ! git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
             git tag -a "${NEXT_TAG}" -m "Release ${NEXT_TAG}"
             git push origin "${NEXT_TAG}"
+            gh api \
+              --method POST \
+              "repos/${{ github.repository }}/actions/workflows/build.yml/dispatches" \
+              -f ref="${NEXT_TAG}"
           fi
 
   build-base:
     name: Build base
     runs-on: ubuntu-24.04
     needs: prepare-release
-    if: github.ref_type == 'branch' || github.ref_type == 'tag'
+    if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
     steps:
@@ -161,7 +166,7 @@ jobs:
           dockerfile_path="Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base"
 
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             image_tags="${release_version}"$'\n'"${release_tag}"
           else
             image_tags="latest"
@@ -197,7 +202,7 @@ jobs:
     needs:
       - prepare-release
       - build-base
-    if: github.ref_type == 'branch' || github.ref_type == 'tag'
+    if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
     strategy:
@@ -238,7 +243,7 @@ jobs:
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}"
           base_version="${release_version}"
 
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             image_tags="${{ matrix.java-version }}-${release_version}"$'\n'"${{ matrix.java-version }}-${release_tag}"
           else
             image_tags="${{ matrix.java-version }}"
@@ -273,7 +278,7 @@ jobs:
     name: Build ${{ matrix.target }}
     runs-on: ubuntu-24.04
     needs: prepare-release
-    if: github.ref_type == 'branch' || github.ref_type == 'tag'
+    if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
     strategy:
@@ -320,7 +325,7 @@ jobs:
               image_name="galaxioteam/gatling-sbt-builder"
               dockerfile_path="gatling-sbt-builder.Dockerfile"
               cache_ref="${CACHE_REPOSITORY}:gatling-sbt-builder"
-              if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
                 image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-sbt'
               else
                 image_tags="latest"
@@ -331,7 +336,7 @@ jobs:
               image_name="galaxioteam/gatling-maven-builder"
               dockerfile_path="gatling-maven-builder.Dockerfile"
               cache_ref="${CACHE_REPOSITORY}:gatling-maven-builder"
-              if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
                 image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-maven'
               else
                 image_tags="latest"
@@ -342,7 +347,7 @@ jobs:
               image_name="galaxioteam/gatling-gradle-builder"
               dockerfile_path="gatling-gradle-builder.Dockerfile"
               cache_ref="${CACHE_REPOSITORY}:gatling-gradle-builder"
-              if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
                 image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-gradle'
               else
                 image_tags="latest"
@@ -353,7 +358,7 @@ jobs:
               image_name="galaxioteam/gatling-runtime"
               dockerfile_path="gatling-runtime.Dockerfile"
               cache_ref="${CACHE_REPOSITORY}:gatling-runtime"
-              if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
                 image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"
               else
                 image_tags="latest"
@@ -364,7 +369,7 @@ jobs:
               image_name="galaxioteam/gatling-debug"
               dockerfile_path="gatling-debug.Dockerfile"
               cache_ref="${CACHE_REPOSITORY}:gatling-debug"
-              if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
                 image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"
               else
                 image_tags="latest"
@@ -403,7 +408,7 @@ jobs:
     name: Generate Changelog
     runs-on: ubuntu-24.04
     needs: prepare-release
-    if: github.ref_type == 'tag'
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
     outputs:
@@ -423,7 +428,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-24.04
-    if: github.ref_type == 'tag'
+    if: startsWith(github.ref, 'refs/tags/')
     needs:
       - prepare-release
       - build-base

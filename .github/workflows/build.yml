@@ -236,14 +236,16 @@ jobs:
           image_name="galaxioteam/base-jdk"
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}"
+          base_version="${release_version}"
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             image_tags="${{ matrix.java-version }}-${release_version}"$'\n'"${{ matrix.java-version }}-${release_tag}"
           else
             image_tags="${{ matrix.java-version }}"
+            base_version="latest"
           fi
 
-          build_args=$'BASE_VERSION='"${release_version}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
+          build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
 
           {
             echo "image_name=${image_name}"

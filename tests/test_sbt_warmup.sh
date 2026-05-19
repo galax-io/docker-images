@@ -111,5 +111,5 @@ EOF
   printf 'PASS: %s\n' "${case_name}"
 }
 
-run_case "default-style override" "github:galax-io/galaxio-template-registry" "gatling/scala-sbt"
+run_case "default-style override" "github:galax-io/galaxio-template-registry" "github:galax-io/templates-gatling#v0.13.0/scala-sbt"
 run_case "custom registry and template" "local:/tmp/custom-registry" "custom/scala-sbt"

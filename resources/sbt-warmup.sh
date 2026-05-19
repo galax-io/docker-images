@@ -10,7 +10,7 @@ gatlingSbt="${4}"
 SBT_HOME="${SBT_HOME:-/home/sbtuser/.sbt}"
 COURSIER_CACHE="${COURSIER_CACHE:-${SBT_HOME}/.cache/coursier/v1}"
 GALAXIO_TEMPLATE_REGISTRY="${GALAXIO_TEMPLATE_REGISTRY:-github:galax-io/galaxio-template-registry}"
-GALAXIO_TEMPLATE_NAME="${GALAXIO_TEMPLATE_NAME:-gatling/scala-sbt}"
+GALAXIO_TEMPLATE_NAME="${GALAXIO_TEMPLATE_NAME:-github:galax-io/templates-gatling#v0.13.0/scala-sbt}"
 GALAXIO_WARMUP_DIR="${GALAXIO_WARMUP_DIR:-warmup}"
 GALAXIO_WARMUP_VALUES_FILE="${GALAXIO_WARMUP_VALUES_FILE:-warmup-values.yaml}"
 

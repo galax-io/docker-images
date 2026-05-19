@@ -1,5 +1,5 @@
 ARG JAVA_VERSION=21
-ARG GATLING_VERSION=3.11.5
+ARG GATLING_VERSION=3.13.5
 
 FROM eclipse-temurin:${JAVA_VERSION}-jdk-jammy AS bundle
 
@@ -54,7 +54,7 @@ RUN mkdir -p /busybox-root/bin && \
 FROM gcr.io/distroless/cc-debian12:nonroot
 
 LABEL org.opencontainers.image.title="galaxioteam/gatling-runtime"
-LABEL org.opencontainers.image.description="Hardened Gatling 3.11 runtime image with offline Maven wrapper and minimal BusyBox userspace."
+LABEL org.opencontainers.image.description="Hardened Gatling 3.13 runtime image with offline Maven wrapper and minimal BusyBox userspace."
 
 COPY --from=busybox /busybox-root/bin/ /bin/
 COPY --from=bundle --chown=nonroot:nonroot /opt/java/openjdk/ /opt/java/openjdk/

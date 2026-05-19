@@ -1,12 +1,12 @@
 ARG JAVA_VERSION=21
-ARG GATLING_VERSION=3.11.5
+ARG GATLING_VERSION=3.13.5
 
 FROM eclipse-temurin:${JAVA_VERSION}-jdk-jammy
 
 LABEL maintainer="Galaxio Team"
 LABEL authors="i.akhaltsev"
 LABEL org.opencontainers.image.title="galaxioteam/gatling-debug"
-LABEL org.opencontainers.image.description="Debug-friendly Gatling 3.11 image with shell and network tooling."
+LABEL org.opencontainers.image.description="Debug-friendly Gatling 3.13 image with shell and network tooling."
 
 ARG GATLING_VERSION
 

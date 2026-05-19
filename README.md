@@ -54,7 +54,7 @@ docker build -f gatling-sbt-builder.Dockerfile -t galaxioteam/gatling-sbt-builde
 Builder image for Gatling Maven projects:
 
 - based on official Maven + Temurin
-- warms the local `.m2` repository with Gatling 3.11 dependencies
+- warms the local `.m2` repository with Gatling 3.13 dependencies
 - intended for Java/Kotlin/Scala Maven projects
 
 Build:
@@ -68,7 +68,7 @@ docker build -f gatling-maven-builder.Dockerfile -t galaxioteam/gatling-maven-bu
 Builder image for Gatling Gradle projects:
 
 - based on official Gradle + JDK 21
-- warms the Gradle cache with Gatling 3.11 dependencies
+- warms the Gradle cache with Gatling 3.13 dependencies
 - intended for Java/Kotlin/Scala Gradle projects
 
 Build:
@@ -79,7 +79,7 @@ docker build -f gatling-gradle-builder.Dockerfile -t galaxioteam/gatling-gradle-
 
 ### `gatling-runtime.Dockerfile`
 
-Hardened Gatling 3.11 runtime image:
+Hardened Gatling 3.13 runtime image:
 
 - distroless final image
 - non-root user
@@ -88,7 +88,7 @@ Hardened Gatling 3.11 runtime image:
 
 Why not fully distroless-only?
 
-Gatling `3.11.x` ships as a Maven-wrapper-based bundle. Running the official bundle requires a shell and a few POSIX utilities because `mvnw` is a shell script. The runtime image therefore uses:
+Gatling `3.13.x` ships as a Maven-wrapper-based bundle. Running the official bundle requires a shell and a few POSIX utilities because `mvnw` is a shell script. The runtime image therefore uses:
 
 - tiny BusyBox userspace instead of a full Debian/Ubuntu userspace
 
@@ -100,7 +100,7 @@ docker build -f gatling-runtime.Dockerfile -t galaxioteam/gatling-runtime:local 
 
 ### `gatling-debug.Dockerfile`
 
-Debug-friendly Gatling 3.11 image:
+Debug-friendly Gatling 3.13 image:
 
 - shell, git, jq, curl, netcat, procps
 - meant only for troubleshooting and ad-hoc inspection
@@ -128,7 +128,7 @@ docker run --rm galaxioteam/gatling-runtime:local test gatling:test -Dgatling.si
 For production and CI usage, prefer the following split:
 
 1. Use `gatling-sbt-builder`, `gatling-maven-builder`, and `gatling-gradle-builder` only as builder images.
-2. Use `gatling-runtime` as the smallest safe image when you need the official 3.11 bundle workflow.
+2. Use `gatling-runtime` as the smallest safe image when you need the official 3.13 bundle workflow.
 3. Use `gatling-debug` only for troubleshooting.
 4. Run containers with:
    - read-only root filesystem

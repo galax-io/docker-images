@@ -1,6 +1,6 @@
 ARG MAVEN_VERSION=3.9.9
 ARG JAVA_VERSION=21
-ARG GATLING_VERSION=3.11.5
+ARG GATLING_VERSION=3.13.5
 
 FROM maven:${MAVEN_VERSION}-eclipse-temurin-${JAVA_VERSION}
 
@@ -43,7 +43,7 @@ RUN mkdir -p /home/gatling/project/src/test/java/computerdatabase && \
     <maven.compiler.release>11</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <gatling.version>${GATLING_VERSION}</gatling.version>
-    <gatling-maven-plugin.version>4.9.5</gatling-maven-plugin.version>
+    <gatling-maven-plugin.version>4.16.3</gatling-maven-plugin.version>
   </properties>
   <dependencies>
     <dependency>

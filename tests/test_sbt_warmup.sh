@@ -89,13 +89,13 @@ EOF
     GALAXIO_TEMPLATE_NAME="${template_name}" \
     GALAXIO_WARMUP_DIR="warmup-project" \
     GALAXIO_WARMUP_VALUES_FILE="warmup-values.yaml" \
-    sh "${SCRIPT}" 1.11.3 3.11.5 1.10.3 4.18.1
+    sh "${SCRIPT}" 1.11.3 3.13.5 1.12.0 4.18.1
   )
 
   assert_exists "${values_snapshot}"
   assert_file_contains "${values_snapshot}" "SbtVersion: 1.11.3"
-  assert_file_contains "${values_snapshot}" "GatlingVersion: 3.11.5"
-  assert_file_contains "${values_snapshot}" "GatlingPicatinnyVersion: 1.10.3"
+  assert_file_contains "${values_snapshot}" "GatlingVersion: 3.13.5"
+  assert_file_contains "${values_snapshot}" "GatlingPicatinnyVersion: 1.12.0"
   assert_file_contains "${values_snapshot}" "SbtGatlingVersion: 4.18.1"
 
   assert_file_contains "${log_file}" "galaxio|pwd=${workdir}|template configure --registry ${registry}"

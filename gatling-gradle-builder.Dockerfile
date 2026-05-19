@@ -1,6 +1,6 @@
 ARG GRADLE_VERSION=8.10.2
 ARG JAVA_VERSION=21
-ARG GATLING_VERSION=3.11.5
+ARG GATLING_VERSION=3.13.5
 
 FROM gradle:${GRADLE_VERSION}-jdk${JAVA_VERSION}
 
@@ -33,7 +33,7 @@ EOF
 RUN cat > /home/gradle/project/build.gradle <<EOF
 plugins {
   id 'java'
-  id 'io.gatling.gradle' version '3.13.4'
+  id 'io.gatling.gradle' version '3.13.5.4'
 }
 
 repositories {

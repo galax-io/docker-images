@@ -8,9 +8,9 @@ LABEL org.opencontainers.image.title="galaxioteam/gatling-sbt-builder"
 LABEL org.opencontainers.image.description="Builder image for Gatling Scala projects with sbt and warmed caches."
 
 ARG SBT_VERSION
-ARG GATLING_VERSION=3.11.5
+ARG GATLING_VERSION=3.13.5
 ARG GATLING_SBT_VERSION=4.18.1
-ARG PICATINNY_VERSION=1.10.3
+ARG PICATINNY_VERSION=1.12.0
 ARG GALAXIO_CLI_VERSION=0.6.1
 
 ENV HOME=/home/sbtuser \

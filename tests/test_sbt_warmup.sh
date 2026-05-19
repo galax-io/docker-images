@@ -128,13 +128,13 @@ EOF
     GALAXIO_TEMPLATES_ARCHIVE_URL="${archive_url}" \
     GALAXIO_TEMPLATE_REGISTRY_DIR="warmup-registry" \
     GALAXIO_TEMPLATES_DIR="warmup-templates" \
-    sh "${SCRIPT}" 1.11.3 3.13.5 1.12.0 4.18.1
+    sh "${SCRIPT}" 1.11.3 3.13.5 1.10.4 4.18.1
   )
 
   assert_exists "${values_snapshot}"
   assert_file_contains "${values_snapshot}" "SbtVersion: 1.11.3"
   assert_file_contains "${values_snapshot}" "GatlingVersion: 3.13.5"
-  assert_file_contains "${values_snapshot}" "GatlingPicatinnyVersion: 1.12.0"
+  assert_file_contains "${values_snapshot}" "GatlingPicatinnyVersion: 1.10.4"
   assert_file_contains "${values_snapshot}" "SbtGatlingVersion: 4.18.1"
 
   assert_file_contains "${log_file}" "galaxio|pwd=${workdir}|template configure --registry ${registry}"

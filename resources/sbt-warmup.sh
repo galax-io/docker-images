@@ -18,6 +18,11 @@ GALAXIO_TEMPLATES_DIR="${GALAXIO_TEMPLATES_DIR:-templates-gatling-source}"
 GALAXIO_TEMPLATES_REPOSITORY="${GALAXIO_TEMPLATES_REPOSITORY:-galax-io/templates-gatling}"
 GALAXIO_TEMPLATES_REF="${GALAXIO_TEMPLATES_REF:-}"
 GALAXIO_TEMPLATES_ARCHIVE_URL="${GALAXIO_TEMPLATES_ARCHIVE_URL:-}"
+GALAXIO_TEMPLATES_CURL_RETRY_COUNT="${GALAXIO_TEMPLATES_CURL_RETRY_COUNT:-5}"
+GALAXIO_TEMPLATES_CURL_RETRY_DELAY_SECONDS="${GALAXIO_TEMPLATES_CURL_RETRY_DELAY_SECONDS:-2}"
+GALAXIO_TEMPLATES_CURL_CONNECT_TIMEOUT_SECONDS="${GALAXIO_TEMPLATES_CURL_CONNECT_TIMEOUT_SECONDS:-15}"
+GALAXIO_TEMPLATES_CURL_MAX_TIME_SECONDS="${GALAXIO_TEMPLATES_CURL_MAX_TIME_SECONDS:-300}"
+template_archive_tmp=""
 
 cleanup_targets=""
 
@@ -45,6 +50,8 @@ remember_cleanup_target() {
 
 cleanup() {
   [ -n "${cleanup_targets}" ] || return 0
+
+  rm -f "${template_archive_tmp}"
 
   old_ifs="${IFS}"
   IFS='
@@ -92,7 +99,18 @@ prepare_local_registry() {
   fi
 
   mkdir -p "${GALAXIO_TEMPLATES_DIR}" "${GALAXIO_TEMPLATE_REGISTRY_DIR}"
-  curl -fsSL "${archive_url}" | tar -xz -C "${GALAXIO_TEMPLATES_DIR}" --strip-components=1
+  template_archive_tmp="$(mktemp)"
+  curl -fsSL \
+    --retry "${GALAXIO_TEMPLATES_CURL_RETRY_COUNT}" \
+    --retry-all-errors \
+    --retry-delay "${GALAXIO_TEMPLATES_CURL_RETRY_DELAY_SECONDS}" \
+    --connect-timeout "${GALAXIO_TEMPLATES_CURL_CONNECT_TIMEOUT_SECONDS}" \
+    --max-time "${GALAXIO_TEMPLATES_CURL_MAX_TIME_SECONDS}" \
+    -o "${template_archive_tmp}" \
+    "${archive_url}"
+  tar -xz -C "${GALAXIO_TEMPLATES_DIR}" --strip-components=1 < "${template_archive_tmp}"
+  rm -f "${template_archive_tmp}"
+  template_archive_tmp=""
 
   cat > "${GALAXIO_TEMPLATE_REGISTRY_DIR}/galaxio-registry.yaml" <<EOF
 apiVersion: galaxio.io/v1

@@ -13,7 +13,7 @@ fail() {
 assert_file_contains() {
   file="$1"
   pattern="$2"
-  grep -F "$pattern" "$file" >/dev/null 2>&1 || fail "expected '$pattern' in $file"
+  grep -F -- "$pattern" "$file" >/dev/null 2>&1 || fail "expected '$pattern' in $file"
 }
 
 assert_file_equals() {
@@ -73,6 +73,7 @@ run_case() {
   registry="$2"
   template_name="$3"
   archive_url="$4"
+  expected_registry="$5"
 
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "$tmpdir"' EXIT INT TERM
@@ -116,7 +117,20 @@ EOF
 #!/usr/bin/env sh
 set -eu
 printf 'curl|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
-cat "${TEST_ARCHIVE_FILE}"
+output_file=""
+prev=""
+for arg in "$@"; do
+  if [ "${prev}" = "-o" ]; then
+    output_file="${arg}"
+  fi
+  prev="${arg}"
+done
+
+if [ -n "${output_file}" ]; then
+  cp "${TEST_ARCHIVE_FILE}" "${output_file}"
+else
+  cat "${TEST_ARCHIVE_FILE}"
+fi
 EOF
   chmod +x "${mockbin}/curl"
 
@@ -147,7 +161,17 @@ EOF
   assert_file_contains "${values_snapshot}" "GatlingPicatinnyVersion: 1.10.4"
   assert_file_contains "${values_snapshot}" "SbtGatlingVersion: 4.18.1"
 
-  assert_file_contains "${log_file}" "galaxio|pwd=${workdir}|template configure --registry ${registry}"
+  if [ -n "${archive_url}" ]; then
+    assert_file_contains "${log_file}" "curl|"
+    assert_file_contains "${log_file}" "--retry 5"
+    assert_file_contains "${log_file}" "--retry-all-errors"
+    assert_file_contains "${log_file}" "--retry-delay 2"
+    assert_file_contains "${log_file}" "--connect-timeout 15"
+    assert_file_contains "${log_file}" "--max-time 300"
+    assert_file_contains "${log_file}" "-o "
+    assert_file_contains "${log_file}" "${archive_url}"
+  fi
+  assert_file_contains "${log_file}" "galaxio|pwd=${workdir}|template configure --registry ${expected_registry}"
   assert_file_contains "${log_file}" "galaxio|pwd=${workdir}|template init ${template_name} --destination ./warmup-project --values ./warmup-values.yaml"
   assert_file_contains "${log_file}" "sbt|pwd=${workdir}/warmup-project|update compile Gatling / compile"
 
@@ -205,7 +229,20 @@ EOF
 #!/usr/bin/env sh
 set -eu
 printf 'curl|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
-cat "${TEST_ARCHIVE_FILE}"
+output_file=""
+prev=""
+for arg in "$@"; do
+  if [ "${prev}" = "-o" ]; then
+    output_file="${arg}"
+  fi
+  prev="${arg}"
+done
+
+if [ -n "${output_file}" ]; then
+  cp "${TEST_ARCHIVE_FILE}" "${output_file}"
+else
+  cat "${TEST_ARCHIVE_FILE}"
+fi
 EOF
   chmod +x "${mockbin}/curl"
 
@@ -248,6 +285,6 @@ EOF
   printf 'PASS: existing paths are preserved and new paths are cleaned up\n'
 }
 
-run_case "local bootstrap defaults" "local:./warmup-registry" "gatling/scala-sbt" "https://example.invalid/templates-gatling.tar.gz"
-run_case "custom registry and template" "local:/tmp/custom-registry" "custom/scala-sbt" ""
+run_case "local bootstrap defaults" "" "gatling/scala-sbt" "https://example.invalid/templates-gatling.tar.gz" "local:./warmup-registry"
+run_case "custom registry and template" "local:/tmp/custom-registry" "custom/scala-sbt" "" "local:/tmp/custom-registry"
 run_preserve_existing_paths_case

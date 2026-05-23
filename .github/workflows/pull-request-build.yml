@@ -68,7 +68,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push image with BuildKit
+      - name: Build image with BuildKit
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
@@ -76,6 +76,7 @@ jobs:
           CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
   build-java:
@@ -120,7 +121,7 @@ jobs:
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}-pr"
           image_tags="${{ matrix.java-version }}-${sha_tag}"
-          build_args=$'BASE_VERSION='"${sha_tag}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
+          build_args=$'BASE_VERSION=latest\nJAVA_VERSION=${{ matrix.java-version }}'
 
           {
             echo "image_name=${image_name}"
@@ -134,7 +135,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push image with BuildKit
+      - name: Build image with BuildKit
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
@@ -142,6 +143,7 @@ jobs:
           CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
   build-gatling-images:
@@ -241,7 +243,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push image with BuildKit
+      - name: Build image with BuildKit
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
@@ -249,4 +251,5 @@ jobs:
           CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh

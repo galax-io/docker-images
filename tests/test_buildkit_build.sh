@@ -60,3 +60,23 @@ assert_file_contains "${args_file}" "build"
 assert_file_contains "${args_file}" "type=image,\"name=docker.io/example/app:latest,docker.io/example/app:0.1.0,docker.io/example/app:v0.1.0\",oci-mediatypes=true,name-canonical=true,push=true"
 
 printf 'PASS: buildkit helper multi-tag output\n'
+
+: > "${log_file}"
+: > "${args_file}"
+
+(
+  cd "${REPO_ROOT}"
+  PATH="${mockbin}:/usr/bin:/bin" \
+  IMAGE_NAME='docker.io/example/app' \
+  IMAGE_TAGS='latest' \
+  DOCKERFILE_PATH='Dockerfile' \
+  CACHE_REF='docker.io/example/cache:app' \
+  BUILDKITD_BIN="${mockbin}/buildkitd" \
+  BUILDKIT_ADDR='tcp://127.0.0.1:1234' \
+  PUSH_IMAGE='false' \
+  bash "${SCRIPT}"
+)
+
+assert_file_contains "${args_file}" "push=false"
+
+printf 'PASS: buildkit helper respects PUSH_IMAGE=false\n'

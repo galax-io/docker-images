@@ -26,6 +26,41 @@ assert_exists() {
   [ -e "$path" ] || fail "expected $path to exist"
 }
 
+install_common_mocks() {
+  mockbin="$1"
+
+  cat > "${mockbin}/galaxio" <<'EOF'
+#!/usr/bin/env sh
+set -eu
+printf 'galaxio|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
+if [ "${1:-}" = "template" ] && [ "${2:-}" = "init" ]; then
+  dest=""
+  values=""
+  prev=""
+  for arg in "$@"; do
+    if [ "${prev}" = "--destination" ]; then
+      dest="${arg}"
+    fi
+    if [ "${prev}" = "--values" ]; then
+      values="${arg}"
+    fi
+    prev="${arg}"
+  done
+  [ -n "${dest}" ] || exit 91
+  mkdir -p "${dest}"
+  [ -z "${values}" ] || cp "${values}" "${TEST_VALUES_SNAPSHOT}"
+fi
+EOF
+  chmod +x "${mockbin}/galaxio"
+
+  cat > "${mockbin}/sbt" <<'EOF'
+#!/usr/bin/env sh
+set -eu
+printf 'sbt|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
+EOF
+  chmod +x "${mockbin}/sbt"
+}
+
 run_case() {
   case_name="$1"
   registry="$2"
@@ -42,6 +77,7 @@ run_case() {
   values_snapshot="${tmpdir}/warmup-values.snapshot"
 
   mkdir -p "${mockbin}" "${workdir}" "${sbt_home}"
+  install_common_mocks "${mockbin}"
 
   archive_root="${tmpdir}/archive-root"
   archive_payload="${tmpdir}/templates.tar.gz"
@@ -69,32 +105,6 @@ EOF
   printf 'warmup\n' > "${archive_root}/galaxio-pack/scala-sbt/files/README.md"
   tar -C "${archive_root}" -czf "${archive_payload}" galaxio-pack
 
-  cat > "${mockbin}/galaxio" <<'EOF'
-#!/usr/bin/env sh
-set -eu
-printf 'galaxio|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
-if [ "${1:-}" = "template" ] && [ "${2:-}" = "init" ]; then
-  dest=""
-  values=""
-  prev=""
-  for arg in "$@"; do
-    if [ "${prev}" = "--destination" ]; then
-      dest="${arg}"
-    fi
-    if [ "${prev}" = "--values" ]; then
-      values="${arg}"
-    fi
-    prev="${arg}"
-  done
-  [ -n "${dest}" ] || exit 91
-  mkdir -p "${dest}"
-  if [ -n "${values}" ]; then
-    cp "${values}" "${TEST_VALUES_SNAPSHOT}"
-  fi
-fi
-EOF
-  chmod +x "${mockbin}/galaxio"
-
   cat > "${mockbin}/curl" <<'EOF'
 #!/usr/bin/env sh
 set -eu
@@ -102,13 +112,6 @@ printf 'curl|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
 cat "${TEST_ARCHIVE_FILE}"
 EOF
   chmod +x "${mockbin}/curl"
-
-  cat > "${mockbin}/sbt" <<'EOF'
-#!/usr/bin/env sh
-set -eu
-printf 'sbt|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
-EOF
-  chmod +x "${mockbin}/sbt"
 
   mkdir -p "${sbt_home}/boot"
   : > "${sbt_home}/boot/bootstrap.lock"
@@ -163,39 +166,7 @@ run_preserve_existing_paths_case() {
   values_snapshot="${tmpdir}/warmup-values.snapshot"
 
   mkdir -p "${mockbin}" "${workdir}" "${sbt_home}"
-
-  cat > "${mockbin}/galaxio" <<'EOF'
-#!/usr/bin/env sh
-set -eu
-printf 'galaxio|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
-if [ "${1:-}" = "template" ] && [ "${2:-}" = "init" ]; then
-  dest=""
-  values=""
-  prev=""
-  for arg in "$@"; do
-    if [ "${prev}" = "--destination" ]; then
-      dest="${arg}"
-    fi
-    if [ "${prev}" = "--values" ]; then
-      values="${arg}"
-    fi
-    prev="${arg}"
-  done
-  [ -n "${dest}" ] || exit 91
-  mkdir -p "${dest}"
-  if [ -n "${values}" ]; then
-    cp "${values}" "${TEST_VALUES_SNAPSHOT}"
-  fi
-fi
-EOF
-  chmod +x "${mockbin}/galaxio"
-
-  cat > "${mockbin}/sbt" <<'EOF'
-#!/usr/bin/env sh
-set -eu
-printf 'sbt|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
-EOF
-  chmod +x "${mockbin}/sbt"
+  install_common_mocks "${mockbin}"
 
   mkdir -p "${sbt_home}/boot"
   : > "${sbt_home}/boot/bootstrap.lock"

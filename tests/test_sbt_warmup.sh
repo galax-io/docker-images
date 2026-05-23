@@ -152,5 +152,91 @@ EOF
   printf 'PASS: %s\n' "${case_name}"
 }
 
+run_preserve_existing_paths_case() {
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' EXIT INT TERM
+
+  mockbin="${tmpdir}/mockbin"
+  workdir="${tmpdir}/work"
+  sbt_home="${tmpdir}/sbt-home"
+  log_file="${tmpdir}/commands.log"
+  values_snapshot="${tmpdir}/warmup-values.snapshot"
+
+  mkdir -p "${mockbin}" "${workdir}" "${sbt_home}"
+
+  cat > "${mockbin}/galaxio" <<'EOF'
+#!/usr/bin/env sh
+set -eu
+printf 'galaxio|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
+if [ "${1:-}" = "template" ] && [ "${2:-}" = "init" ]; then
+  dest=""
+  values=""
+  prev=""
+  for arg in "$@"; do
+    if [ "${prev}" = "--destination" ]; then
+      dest="${arg}"
+    fi
+    if [ "${prev}" = "--values" ]; then
+      values="${arg}"
+    fi
+    prev="${arg}"
+  done
+  [ -n "${dest}" ] || exit 91
+  mkdir -p "${dest}"
+  if [ -n "${values}" ]; then
+    cp "${values}" "${TEST_VALUES_SNAPSHOT}"
+  fi
+fi
+EOF
+  chmod +x "${mockbin}/galaxio"
+
+  cat > "${mockbin}/sbt" <<'EOF'
+#!/usr/bin/env sh
+set -eu
+printf 'sbt|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
+EOF
+  chmod +x "${mockbin}/sbt"
+
+  mkdir -p "${sbt_home}/boot"
+  : > "${sbt_home}/boot/bootstrap.lock"
+
+  mkdir -p "${workdir}/warmup-project" "${workdir}/warmup-registry" "${workdir}/warmup-templates"
+  printf 'keep me\n' > "${workdir}/warmup-project/existing.txt"
+  printf 'keep me\n' > "${workdir}/warmup-registry/existing.txt"
+  printf 'keep me\n' > "${workdir}/warmup-templates/existing.txt"
+  printf 'keep me\n' > "${workdir}/warmup-values.yaml"
+
+  (
+    cd "${workdir}"
+    PATH="${mockbin}:${PATH}" \
+    TEST_LOG_FILE="${log_file}" \
+    TEST_VALUES_SNAPSHOT="${values_snapshot}" \
+    SBT_HOME="${sbt_home}" \
+    COURSIER_CACHE="${sbt_home}/coursier-cache" \
+    GALAXIO_WARMUP_DIR="warmup-project" \
+    GALAXIO_WARMUP_VALUES_FILE="warmup-values.yaml" \
+    GALAXIO_TEMPLATE_REGISTRY="local:/tmp/custom-registry" \
+    GALAXIO_TEMPLATE_NAME="custom/scala-sbt" \
+    GALAXIO_TEMPLATE_REGISTRY_DIR="warmup-registry" \
+    GALAXIO_TEMPLATES_DIR="warmup-templates" \
+    sh "${SCRIPT}" 1.11.3 3.13.5 1.10.4 4.18.1
+  )
+
+  assert_exists "${values_snapshot}"
+  assert_exists "${workdir}/warmup-project"
+  assert_exists "${workdir}/warmup-project/existing.txt"
+  assert_exists "${workdir}/warmup-values.yaml"
+  assert_exists "${workdir}/warmup-registry"
+  assert_exists "${workdir}/warmup-registry/existing.txt"
+  assert_exists "${workdir}/warmup-templates"
+  assert_exists "${workdir}/warmup-templates/existing.txt"
+  assert_not_exists "${sbt_home}/boot/bootstrap.lock"
+
+  rm -rf "${tmpdir}"
+  trap - EXIT INT TERM
+  printf 'PASS: existing paths are preserved\n'
+}
+
 run_case "local bootstrap defaults" "local:./warmup-registry" "gatling/scala-sbt" "https://example.invalid/templates-gatling.tar.gz"
 run_case "custom registry and template" "local:/tmp/custom-registry" "custom/scala-sbt" ""
+run_preserve_existing_paths_case

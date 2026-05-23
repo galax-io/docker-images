@@ -21,14 +21,21 @@ GALAXIO_TEMPLATES_ARCHIVE_URL="${GALAXIO_TEMPLATES_ARCHIVE_URL:-}"
 
 cleanup_targets=""
 
-remember_cleanup_target() {
+validate_managed_path() {
   path="$1"
 
   case "${path}" in
-    ""|/|.|..)
-      return 0
+    ""|/|.|..|-*)
+      printf 'Refusing unsafe managed path: %s\n' "${path}" >&2
+      exit 1
       ;;
   esac
+}
+
+remember_cleanup_target() {
+  path="$1"
+
+  validate_managed_path "${path}"
 
   if [ ! -e "${path}" ] && [ ! -L "${path}" ]; then
     cleanup_targets="${cleanup_targets}${cleanup_targets:+
@@ -101,8 +108,14 @@ EOF
 export SBT_HOME
 export COURSIER_CACHE
 
+effective_values_file="${GALAXIO_WARMUP_VALUES_FILE}"
+if [ -e "${GALAXIO_WARMUP_VALUES_FILE}" ] || [ -L "${GALAXIO_WARMUP_VALUES_FILE}" ]; then
+  effective_values_file="$(mktemp "${GALAXIO_WARMUP_VALUES_FILE}.tmp.XXXXXX")"
+  remember_cleanup_target "${effective_values_file}"
+fi
+
 mkdir -p "${COURSIER_CACHE}" "${SBT_HOME}/boot"
-cat > "${GALAXIO_WARMUP_VALUES_FILE}" <<EOF
+cat > "${effective_values_file}" <<EOF
 Name: warmup
 NameWord: warmup
 Package: org.galaxio.performance
@@ -131,7 +144,7 @@ fi
 galaxio template configure --registry "${effective_registry}"
 galaxio template init "${GALAXIO_TEMPLATE_NAME}" \
   --destination "./${GALAXIO_WARMUP_DIR}" \
-  --values "./${GALAXIO_WARMUP_VALUES_FILE}"
+  --values "./${effective_values_file}"
 
 cd "./${GALAXIO_WARMUP_DIR}"
 sbt update compile "Gatling / compile"

@@ -16,6 +16,13 @@ assert_file_contains() {
   grep -F "$pattern" "$file" >/dev/null 2>&1 || fail "expected '$pattern' in $file"
 }
 
+assert_file_equals() {
+  path="$1"
+  expected="$2"
+  actual="$(cat "$path")"
+  [ "${actual}" = "${expected}" ] || fail "expected '$path' to equal '$expected', got '$actual'"
+}
+
 assert_not_exists() {
   path="$1"
   [ ! -e "$path" ] || fail "expected $path to be removed"
@@ -164,17 +171,49 @@ run_preserve_existing_paths_case() {
   sbt_home="${tmpdir}/sbt-home"
   log_file="${tmpdir}/commands.log"
   values_snapshot="${tmpdir}/warmup-values.snapshot"
+  archive_root="${tmpdir}/archive-root"
+  archive_payload="${tmpdir}/templates.tar.gz"
 
   mkdir -p "${mockbin}" "${workdir}" "${sbt_home}"
   install_common_mocks "${mockbin}"
 
+  mkdir -p "${archive_root}/galaxio-pack/scala-sbt/files"
+  cat > "${archive_root}/galaxio-pack/galaxio-pack.yaml" <<'EOF'
+apiVersion: galaxio.io/v1
+kind: TemplatePack
+name: gatling
+version: 0.0.0
+templates:
+  - name: scala-sbt
+    version: 0.0.0
+    path: scala-sbt
+EOF
+  cat > "${archive_root}/galaxio-pack/scala-sbt/galaxio-template.yaml" <<'EOF'
+apiVersion: galaxio.io/v1
+kind: Template
+name: scala-sbt
+engine: go-template
+inputs: {}
+files:
+  - from: files
+    to: .
+EOF
+  printf 'warmup\n' > "${archive_root}/galaxio-pack/scala-sbt/files/README.md"
+  tar -C "${archive_root}" -czf "${archive_payload}" galaxio-pack
+
+  cat > "${mockbin}/curl" <<'EOF'
+#!/usr/bin/env sh
+set -eu
+printf 'curl|pwd=%s|%s\n' "$(pwd)" "$*" >> "${TEST_LOG_FILE}"
+cat "${TEST_ARCHIVE_FILE}"
+EOF
+  chmod +x "${mockbin}/curl"
+
   mkdir -p "${sbt_home}/boot"
   : > "${sbt_home}/boot/bootstrap.lock"
 
-  mkdir -p "${workdir}/warmup-project" "${workdir}/warmup-registry" "${workdir}/warmup-templates"
+  mkdir -p "${workdir}/warmup-project"
   printf 'keep me\n' > "${workdir}/warmup-project/existing.txt"
-  printf 'keep me\n' > "${workdir}/warmup-registry/existing.txt"
-  printf 'keep me\n' > "${workdir}/warmup-templates/existing.txt"
   printf 'keep me\n' > "${workdir}/warmup-values.yaml"
 
   (
@@ -182,12 +221,13 @@ run_preserve_existing_paths_case() {
     PATH="${mockbin}:${PATH}" \
     TEST_LOG_FILE="${log_file}" \
     TEST_VALUES_SNAPSHOT="${values_snapshot}" \
+    TEST_ARCHIVE_FILE="${archive_payload}" \
     SBT_HOME="${sbt_home}" \
     COURSIER_CACHE="${sbt_home}/coursier-cache" \
     GALAXIO_WARMUP_DIR="warmup-project" \
     GALAXIO_WARMUP_VALUES_FILE="warmup-values.yaml" \
-    GALAXIO_TEMPLATE_REGISTRY="local:/tmp/custom-registry" \
     GALAXIO_TEMPLATE_NAME="custom/scala-sbt" \
+    GALAXIO_TEMPLATES_ARCHIVE_URL="https://example.invalid/templates-gatling.tar.gz" \
     GALAXIO_TEMPLATE_REGISTRY_DIR="warmup-registry" \
     GALAXIO_TEMPLATES_DIR="warmup-templates" \
     sh "${SCRIPT}" 1.11.3 3.13.5 1.10.4 4.18.1
@@ -197,15 +237,15 @@ run_preserve_existing_paths_case() {
   assert_exists "${workdir}/warmup-project"
   assert_exists "${workdir}/warmup-project/existing.txt"
   assert_exists "${workdir}/warmup-values.yaml"
-  assert_exists "${workdir}/warmup-registry"
-  assert_exists "${workdir}/warmup-registry/existing.txt"
-  assert_exists "${workdir}/warmup-templates"
-  assert_exists "${workdir}/warmup-templates/existing.txt"
+  assert_file_equals "${workdir}/warmup-values.yaml" "keep me"
+  assert_not_exists "${workdir}/warmup-registry"
+  assert_not_exists "${workdir}/warmup-templates"
+  assert_file_contains "${log_file}" "galaxio|pwd=${workdir}|template init custom/scala-sbt --destination ./warmup-project --values ./warmup-values.yaml.tmp."
   assert_not_exists "${sbt_home}/boot/bootstrap.lock"
 
   rm -rf "${tmpdir}"
   trap - EXIT INT TERM
-  printf 'PASS: existing paths are preserved\n'
+  printf 'PASS: existing paths are preserved and new paths are cleaned up\n'
 }
 
 run_case "local bootstrap defaults" "local:./warmup-registry" "gatling/scala-sbt" "https://example.invalid/templates-gatling.tar.gz"

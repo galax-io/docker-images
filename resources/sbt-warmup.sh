@@ -19,23 +19,10 @@ GALAXIO_TEMPLATES_REPOSITORY="${GALAXIO_TEMPLATES_REPOSITORY:-galax-io/templates
 GALAXIO_TEMPLATES_REF="${GALAXIO_TEMPLATES_REF:-}"
 GALAXIO_TEMPLATES_ARCHIVE_URL="${GALAXIO_TEMPLATES_ARCHIVE_URL:-}"
 
-path_exists() {
-  [ -e "${1}" ] || [ -L "${1}" ]
-}
+cleanup_targets=""
 
-mark_for_cleanup() {
-  if path_exists "${1}"; then
-    printf '%s\n' "0"
-  else
-    printf '%s\n' "1"
-  fi
-}
-
-cleanup_path() {
+remember_cleanup_target() {
   path="$1"
-  should_remove="$2"
-
-  [ "${should_remove}" = "1" ] || return 0
 
   case "${path}" in
     ""|/|.|..)
@@ -43,20 +30,28 @@ cleanup_path() {
       ;;
   esac
 
-  rm -rf -- "${path}"
+  if [ ! -e "${path}" ] && [ ! -L "${path}" ]; then
+    cleanup_targets="${cleanup_targets}${cleanup_targets:+
+}${path}"
+  fi
 }
-
-cleanup_warmup_dir="$(mark_for_cleanup "${GALAXIO_WARMUP_DIR}")"
-cleanup_warmup_values_file="$(mark_for_cleanup "${GALAXIO_WARMUP_VALUES_FILE}")"
-cleanup_template_registry_dir="$(mark_for_cleanup "${GALAXIO_TEMPLATE_REGISTRY_DIR}")"
-cleanup_templates_dir="$(mark_for_cleanup "${GALAXIO_TEMPLATES_DIR}")"
 
 cleanup() {
-  cleanup_path "${GALAXIO_WARMUP_DIR}" "${cleanup_warmup_dir}"
-  cleanup_path "${GALAXIO_WARMUP_VALUES_FILE}" "${cleanup_warmup_values_file}"
-  cleanup_path "${GALAXIO_TEMPLATE_REGISTRY_DIR}" "${cleanup_template_registry_dir}"
-  cleanup_path "${GALAXIO_TEMPLATES_DIR}" "${cleanup_templates_dir}"
+  [ -n "${cleanup_targets}" ] || return 0
+
+  old_ifs="${IFS}"
+  IFS='
+'
+  for path in ${cleanup_targets}; do
+    rm -rf -- "${path}"
+  done
+  IFS="${old_ifs}"
 }
+
+remember_cleanup_target "${GALAXIO_WARMUP_DIR}"
+remember_cleanup_target "${GALAXIO_WARMUP_VALUES_FILE}"
+remember_cleanup_target "${GALAXIO_TEMPLATE_REGISTRY_DIR}"
+remember_cleanup_target "${GALAXIO_TEMPLATES_DIR}"
 
 trap cleanup EXIT
 

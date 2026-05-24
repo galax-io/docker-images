@@ -18,12 +18,17 @@ env:
   MAVEN_VERSION: 3.9.9
   GRADLE_VERSION: 8.10.2
 
+# PR builds push images with SHA tags (never overwrites latest/version tags).
+# SHA-tagged images are cleaned up in the pr-cleanup workflow.
+
 jobs:
   build-cli:
     name: Build galaxio-cli
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      sha_tag: ${{ steps.meta.outputs.sha_tag }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -58,6 +63,7 @@ jobs:
           image_tags="${sha_tag}"
           build_args="GALAXIO_CLI_VERSION=${GALAXIO_CLI_VERSION}"
 
+          echo "sha_tag=${sha_tag}" >> "${GITHUB_OUTPUT}"
           {
             echo "image_name=${image_name}"
             echo "dockerfile_path=${dockerfile_path}"
@@ -70,7 +76,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build image with BuildKit
+      - name: Build and push image with BuildKit
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
@@ -78,7 +84,6 @@ jobs:
           CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
-          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
   build-jdk:
@@ -123,8 +128,8 @@ jobs:
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}-pr"
           image_tags="${{ matrix.java-version }}-${sha_tag}"
-          # PR builds use published latest base image (not pushed in PR)
-          build_args=$'BASE_VERSION=latest\nJAVA_VERSION=${{ matrix.java-version }}'
+          # Use SHA-tagged galaxio-cli pushed by build-cli job
+          build_args=$'BASE_VERSION='"${sha_tag}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
 
           {
             echo "image_name=${image_name}"
@@ -138,7 +143,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build image with BuildKit
+      - name: Build and push image with BuildKit
         env:
           IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
@@ -146,7 +151,6 @@ jobs:
           CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
-          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
   build-gatling-chain:
@@ -195,8 +199,8 @@ jobs:
           dockerfile_path="gatling-${tool}-builder.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-builder-${java_version}-pr"
           image_tags="${java_version}-${sha_tag}"
-          # PR builds use published latest base images
-          base_version="latest"
+          # Use SHA-tagged base-jdk pushed by build-jdk job
+          base_version="${sha_tag}"
 
           case "${tool}" in
             sbt)
@@ -222,7 +226,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build builder image
+      - name: Build and push builder image
         env:
           IMAGE_NAME: ${{ steps.builder-meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.builder-meta.outputs.image_tags }}
@@ -230,7 +234,6 @@ jobs:
           CACHE_REF: ${{ steps.builder-meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.builder-meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
-          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
       - name: Prepare runtime metadata
@@ -244,8 +247,8 @@ jobs:
           java_version="${{ matrix.java-version }}"
 
           builder_image="galaxioteam/gatling-${tool}-builder"
-          # PR builds use published latest builder — builder is not pushed in PR
-          builder_version="${java_version}"
+          # Use SHA-tagged builder pushed above (within this same job)
+          builder_version="${java_version}-${sha_tag}"
           image_name="galaxioteam/gatling-${tool}-runtime"
           dockerfile_path="gatling-runtime.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-runtime-${java_version}-pr"
@@ -265,7 +268,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build runtime image
+      - name: Build and push runtime image
         env:
           IMAGE_NAME: ${{ steps.runtime-meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.runtime-meta.outputs.image_tags }}
@@ -273,7 +276,6 @@ jobs:
           CACHE_REF: ${{ steps.runtime-meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.runtime-meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
-          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
       - name: Prepare debug metadata
@@ -287,8 +289,8 @@ jobs:
           java_version="${{ matrix.java-version }}"
 
           runtime_image="galaxioteam/gatling-${tool}-runtime"
-          # PR builds use published latest runtime — runtime is not pushed in PR
-          runtime_version="${java_version}"
+          # Use SHA-tagged runtime pushed above (within this same job)
+          runtime_version="${java_version}-${sha_tag}"
           image_name="galaxioteam/gatling-${tool}-debug"
           dockerfile_path="gatling-debug.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-debug-${java_version}-pr"
@@ -308,7 +310,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build debug image
+      - name: Build and push debug image
         env:
           IMAGE_NAME: ${{ steps.debug-meta.outputs.image_name }}
           IMAGE_TAGS: ${{ steps.debug-meta.outputs.image_tags }}
@@ -316,5 +318,4 @@ jobs:
           CACHE_REF: ${{ steps.debug-meta.outputs.cache_ref }}
           BUILD_ARGS: ${{ steps.debug-meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
-          PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh

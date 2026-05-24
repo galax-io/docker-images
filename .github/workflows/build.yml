@@ -124,10 +124,7 @@ jobs:
           if ! git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
             git tag -a "${NEXT_TAG}" -m "Release ${NEXT_TAG}"
             git push origin "${NEXT_TAG}"
-            gh api \
-              --method POST \
-              "repos/${{ github.repository }}/actions/workflows/build.yml/dispatches" \
-              -f ref="${NEXT_TAG}"
+            # Tag push itself triggers build.yml via on.push.tags — no dispatch needed
           fi
 
   build-jdk:

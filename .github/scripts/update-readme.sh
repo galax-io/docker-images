@@ -62,11 +62,11 @@ for image_tag in "${IMAGES[@]}"; do
 done
 
 # Replace content between markers in README
-python3 - "${README}" <<PYEOF
-import sys, re
+IMAGE_TABLE="${TABLE}" python3 - "${README}" <<'PYEOF'
+import os, sys, re
 
 readme_path = sys.argv[1]
-table = """${TABLE}"""
+table = os.environ["IMAGE_TABLE"]
 
 with open(readme_path, 'r') as f:
     content = f.read()
@@ -80,8 +80,10 @@ if new_content == content:
     # Markers not found — append section
     new_content += '\n\n<!-- IMAGE-SIZES-START -->\n\n' + table.rstrip() + '\n\n<!-- IMAGE-SIZES-END -->\n'
 
-with open(readme_path, 'w') as f:
+tmp_path = readme_path + '.tmp'
+with open(tmp_path, 'w') as f:
     f.write(new_content)
+os.replace(tmp_path, readme_path)
 
 print('README updated.')
 PYEOF

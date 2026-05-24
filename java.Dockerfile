@@ -1,6 +1,12 @@
 # syntax=docker/dockerfile:1
+# base-jdk: stripped Debian base with JDK and galaxio-cli.
+# Inherits from galaxioteam/galaxio-cli conceptually (galaxio binary included),
+# but uses debian:bookworm-slim as its root — required because build tool scripts
+# (sbt, mvn, gradle launcher scripts) need coreutils (uname, dirname, basename, etc.)
+# that are absent in distroless images.
 ARG JAVA_VERSION=21
 ARG BASE_VERSION=latest
+ARG GALAXIO_CLI_VERSION=0.6.1
 
 FROM eclipse-temurin:${JAVA_VERSION}-jdk-jammy AS jdk
 
@@ -22,30 +28,53 @@ RUN rm -rf \
       /opt/java/openjdk/man
 
 
-# Collect bash + libtinfo for distroless base
-FROM debian:bookworm-slim AS bash-src
+FROM debian:bookworm-slim AS downloader
 
-RUN mkdir -p /bash-root/usr/bin /bash-root/usr/lib/x86_64-linux-gnu /bash-root/bin && \
-    cp -L /usr/bin/bash /bash-root/usr/bin/bash && \
-    ln -sf /usr/bin/bash /bash-root/usr/bin/sh && \
-    # Explicit /bin/sh symlink — distroless may not have /bin -> usr/bin
-    ln -sf /usr/bin/bash /bash-root/bin/sh && \
-    ln -sf /usr/bin/bash /bash-root/bin/bash && \
-    cp -L /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /bash-root/usr/lib/x86_64-linux-gnu/libtinfo.so.6
+ARG GALAXIO_CLI_VERSION
+
+SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL \
+      "https://github.com/galax-io/galaxio-cli/releases/download/v${GALAXIO_CLI_VERSION}/galaxio_${GALAXIO_CLI_VERSION}_linux_amd64.tar.gz" \
+      | tar -xz -C /usr/local/bin galaxio && \
+    chmod 0555 /usr/local/bin/galaxio && \
+    /usr/local/bin/galaxio version
 
 
-FROM galaxioteam/galaxio-cli:${BASE_VERSION}
+FROM debian:bookworm-slim
 
 LABEL maintainer="Galaxio Team"
 LABEL authors="i.akhaltsev"
 LABEL org.opencontainers.image.title="galaxioteam/base-jdk"
-LABEL org.opencontainers.image.description="Galaxio CLI base with JDK and bash. Foundation for all Gatling builder images."
+LABEL org.opencontainers.image.description="Stripped Debian base with JDK and galaxio-cli. Foundation for all Gatling builder images."
 
-# Add bash (required by downstream build tool scripts: sbt, mvn, gradle)
-COPY --from=bash-src /bash-root/ /
+ARG GALAXIO_CLI_VERSION
 
-# Add JDK
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      bash \
+      ca-certificates \
+      curl && \
+    rm -rf \
+      /usr/share/doc \
+      /usr/share/man \
+      /usr/share/info \
+      /usr/share/locale \
+      /usr/share/i18n \
+      /var/log/* \
+      /tmp/*
+
+COPY --from=downloader /usr/local/bin/galaxio /usr/local/bin/galaxio
 COPY --from=jdk --link /opt/java/openjdk/ /opt/java/openjdk/
+
+RUN groupadd --gid 65532 nonroot && \
+    useradd --uid 65532 --gid 65532 --create-home --home-dir /home/nonroot --shell /usr/sbin/nologin nonroot
 
 ENV JAVA_HOME=/opt/java/openjdk \
     JAVA_OPTS_COMMON="-Dconfig.override_with_env_vars=true -Dfile.encoding=UTF-8" \

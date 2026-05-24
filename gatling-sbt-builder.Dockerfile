@@ -43,7 +43,7 @@ scalaVersion := "2.13.16"
 enablePlugins(GatlingPlugin)
 libraryDependencies ++= Seq(
   "io.gatling.highcharts" % "gatling-charts-highcharts" % "${GATLING_VERSION}" % Test,
-  "ru.tinkoff"           %% "gatling-picatinny"         % "${PICATINNY_VERSION}" % Test
+  "org.galaxio"          %% "gatling-picatinny"         % "${PICATINNY_VERSION}" % Test
 )
 EOF
 

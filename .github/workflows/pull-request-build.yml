@@ -19,7 +19,6 @@ env:
   GRADLE_VERSION: 8.10.2
 
 # PR builds push images with SHA tags (never overwrites latest/version tags).
-# SHA-tagged images are cleaned up in the pr-cleanup workflow.
 
 jobs:
   build-jdk:

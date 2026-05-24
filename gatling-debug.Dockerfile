@@ -27,7 +27,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # Collect binaries and their shared library dependencies.
 # Everything under /debug-root/usr/ — avoids conflict with /lib -> usr/lib symlink in target image.
-RUN mkdir -p /debug-root/usr/bin /debug-root/usr/lib/x86_64-linux-gnu && \
+RUN mkdir -p /debug-root/usr/bin /debug-root/usr/lib/x86_64-linux-gnu /debug-root/usr/share && \
+    # Required binaries — fail if any missing
     cp -L /usr/bin/curl /debug-root/usr/bin/curl && \
     cp -L /usr/bin/git  /debug-root/usr/bin/git  && \
     cp -L /usr/bin/jq   /debug-root/usr/bin/jq   && \
@@ -35,16 +36,22 @@ RUN mkdir -p /debug-root/usr/bin /debug-root/usr/lib/x86_64-linux-gnu && \
     ln -sf nc /debug-root/usr/bin/netcat          && \
     cp -L /usr/bin/ps   /debug-root/usr/bin/ps   && \
     cp -rL /usr/lib/git-core/ /debug-root/usr/lib/git-core/ && \
-    cp -rL /usr/share/git-core/ /debug-root/usr/share/ || true && \
+    cp -rL /usr/share/git-core/ /debug-root/usr/share/git-core/ && \
+    # Shared libraries — collect from ldd, skip missing gracefully
     for bin in /debug-root/usr/bin/curl /debug-root/usr/bin/jq \
                /debug-root/usr/bin/nc   /debug-root/usr/bin/ps \
                /debug-root/usr/bin/git; do \
       ldd "${bin}" 2>/dev/null \
         | awk '/=>[[:space:]]\// { print $3 }' \
         | while read -r lib; do \
-            [ -f "${lib}" ] && \
-              cp -L "${lib}" /debug-root/usr/lib/x86_64-linux-gnu/ 2>/dev/null || true; \
+            if [ -f "${lib}" ]; then \
+              cp -nL "${lib}" /debug-root/usr/lib/x86_64-linux-gnu/; \
+            fi; \
           done; \
+    done && \
+    # Verify all required binaries are present
+    for bin in curl git jq nc ps; do \
+      test -x "/debug-root/usr/bin/${bin}" || { echo "MISSING: ${bin}" >&2; exit 1; }; \
     done
 
 

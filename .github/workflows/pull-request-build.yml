@@ -22,74 +22,9 @@ env:
 # SHA-tagged images are cleaned up in the pr-cleanup workflow.
 
 jobs:
-  build-cli:
-    name: Build galaxio-cli
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    outputs:
-      sha_tag: ${{ steps.meta.outputs.sha_tag }}
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v5
-
-      - name: Set up BuildKit
-        run: |
-          curl -fsSL \
-            "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
-            -o /tmp/buildkit.tgz
-          tmp_dir="$(mktemp -d)"
-          tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
-          sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
-          sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
-          buildctl --version
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Prepare build metadata
-        id: meta
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          sha_tag="${GITHUB_SHA}"
-          image_name="galaxioteam/galaxio-cli"
-          dockerfile_path="Dockerfile"
-          cache_ref="${CACHE_REPOSITORY}:galaxio-cli-pr"
-          image_tags="${sha_tag}"
-          build_args="GALAXIO_CLI_VERSION=${GALAXIO_CLI_VERSION}"
-
-          echo "sha_tag=${sha_tag}" >> "${GITHUB_OUTPUT}"
-          {
-            echo "image_name=${image_name}"
-            echo "dockerfile_path=${dockerfile_path}"
-            echo "cache_ref=${cache_ref}"
-            echo "image_tags<<EOF"
-            printf '%s\n' "${image_tags}"
-            echo "EOF"
-            echo "build_args<<EOF"
-            printf '%s\n' "${build_args}"
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: Build and push image with BuildKit
-        env:
-          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
-          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
-          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
-          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
-          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
-          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
-        run: ./.github/scripts/buildkit-build.sh
-
   build-jdk:
     name: Build base-jdk ${{ matrix.java-version }}
     runs-on: ubuntu-24.04
-    needs: build-cli
     permissions:
       contents: read
     strategy:
@@ -128,8 +63,8 @@ jobs:
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}-pr"
           image_tags="${{ matrix.java-version }}-${sha_tag}"
-          # Use SHA-tagged galaxio-cli pushed by build-cli job
-          build_args=$'BASE_VERSION='"${sha_tag}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
+          # Base image (galaxioteam/galaxio) is external — built in galax-io/galaxio-cli repo
+          build_args=$'BASE_VERSION=latest\nJAVA_VERSION=${{ matrix.java-version }}'
 
           {
             echo "image_name=${image_name}"

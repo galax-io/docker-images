@@ -25,9 +25,12 @@ RUN rm -rf \
 # Collect bash + libtinfo for distroless base
 FROM debian:bookworm-slim AS bash-src
 
-RUN mkdir -p /bash-root/usr/bin /bash-root/usr/lib/x86_64-linux-gnu && \
+RUN mkdir -p /bash-root/usr/bin /bash-root/usr/lib/x86_64-linux-gnu /bash-root/bin && \
     cp -L /usr/bin/bash /bash-root/usr/bin/bash && \
-    ln -sf bash /bash-root/usr/bin/sh && \
+    ln -sf /usr/bin/bash /bash-root/usr/bin/sh && \
+    # Explicit /bin/sh symlink — distroless may not have /bin -> usr/bin
+    ln -sf /usr/bin/bash /bash-root/bin/sh && \
+    ln -sf /usr/bin/bash /bash-root/bin/bash && \
     cp -L /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /bash-root/usr/lib/x86_64-linux-gnu/libtinfo.so.6
 
 

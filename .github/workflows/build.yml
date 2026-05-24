@@ -17,6 +17,8 @@ env:
   SBT_VERSION: 1.11.3
   PICATINNY_VERSION: 1.10.4
   GALAXIO_CLI_VERSION: 0.6.1
+  MAVEN_VERSION: 3.9.9
+  GRADLE_VERSION: 8.10.2
 
 jobs:
   prepare-release:
@@ -126,8 +128,8 @@ jobs:
               -f ref="${NEXT_TAG}"
           fi
 
-  build-base:
-    name: Build base
+  build-cli:
+    name: Build galaxio-cli
     runs-on: ubuntu-24.04
     needs: prepare-release
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
@@ -160,11 +162,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
           release_version="${{ needs.prepare-release.outputs.release_version }}"
-          image_name="galaxioteam/base"
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
+          image_name="galaxioteam/galaxio-cli"
           dockerfile_path="Dockerfile"
-          cache_ref="${CACHE_REPOSITORY}:base"
+          cache_ref="${CACHE_REPOSITORY}:galaxio-cli"
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             image_tags="${release_version}"$'\n'"${release_tag}"
@@ -172,7 +174,7 @@ jobs:
             image_tags="latest"
           fi
 
-          build_args=""
+          build_args="GALAXIO_CLI_VERSION=${GALAXIO_CLI_VERSION}"
 
           {
             echo "image_name=${image_name}"
@@ -196,12 +198,12 @@ jobs:
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
         run: ./.github/scripts/buildkit-build.sh
 
-  build-java:
-    name: Build java ${{ matrix.java-version }}
+  build-jdk:
+    name: Build base-jdk ${{ matrix.java-version }}
     runs-on: ubuntu-24.04
     needs:
       - prepare-release
-      - build-base
+      - build-cli
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
@@ -236,8 +238,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
           release_version="${{ needs.prepare-release.outputs.release_version }}"
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
           image_name="galaxioteam/base-jdk"
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}"
@@ -274,22 +276,20 @@ jobs:
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
         run: ./.github/scripts/buildkit-build.sh
 
-  build-gatling-images:
-    name: Build ${{ matrix.target }}
+  build-gatling-chain:
+    name: Build gatling-${{ matrix.tool }}-chain (java ${{ matrix.java-version }})
     runs-on: ubuntu-24.04
-    needs: prepare-release
+    needs:
+      - prepare-release
+      - build-jdk
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - gatling-sbt-builder
-          - gatling-maven-builder
-          - gatling-gradle-builder
-          - gatling-runtime
-          - gatling-debug
+        java-version: ['17', '21']
+        tool: ['sbt', 'maven', 'gradle']
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -311,74 +311,38 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Prepare build metadata
-        id: meta
+      - name: Prepare builder metadata
+        id: builder-meta
         shell: bash
         run: |
           set -euo pipefail
 
-          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
           release_version="${{ needs.prepare-release.outputs.release_version }}"
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
+          tool="${{ matrix.tool }}"
+          java_version="${{ matrix.java-version }}"
+          base_version="${release_version}"
 
-          case "${{ matrix.target }}" in
-            gatling-sbt-builder)
-              image_name="galaxioteam/gatling-sbt-builder"
-              dockerfile_path="gatling-sbt-builder.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-sbt-builder"
-              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-                image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-sbt'
-              else
-                image_tags="latest"
-              fi
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"$'\nGATLING_SBT_VERSION='"${GATLING_SBT_VERSION}"$'\nSBT_VERSION='"${SBT_VERSION}"$'\nPICATINNY_VERSION='"${PICATINNY_VERSION}"$'\nGALAXIO_CLI_VERSION='"${GALAXIO_CLI_VERSION}"
+          image_name="galaxioteam/gatling-${tool}-builder"
+          dockerfile_path="gatling-${tool}-builder.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-builder-${java_version}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
+          else
+            image_tags="${java_version}"
+            base_version="latest"
+          fi
+
+          case "${tool}" in
+            sbt)
+              build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION='"${java_version}"$'\nSBT_VERSION='"${SBT_VERSION}"$'\nGATLING_VERSION='"${GATLING_VERSION}"$'\nGATLING_SBT_VERSION='"${GATLING_SBT_VERSION}"$'\nPICATINNY_VERSION='"${PICATINNY_VERSION}"
               ;;
-            gatling-maven-builder)
-              image_name="galaxioteam/gatling-maven-builder"
-              dockerfile_path="gatling-maven-builder.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-maven-builder"
-              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-                image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-maven'
-              else
-                image_tags="latest"
-              fi
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+            maven)
+              build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION='"${java_version}"$'\nMAVEN_VERSION='"${MAVEN_VERSION}"$'\nGATLING_VERSION='"${GATLING_VERSION}"
               ;;
-            gatling-gradle-builder)
-              image_name="galaxioteam/gatling-gradle-builder"
-              dockerfile_path="gatling-gradle-builder.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-gradle-builder"
-              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-                image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"$'-gradle'
-              else
-                image_tags="latest"
-              fi
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
-              ;;
-            gatling-runtime)
-              image_name="galaxioteam/gatling-runtime"
-              dockerfile_path="gatling-runtime.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-runtime"
-              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-                image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"
-              else
-                image_tags="latest"
-              fi
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
-              ;;
-            gatling-debug)
-              image_name="galaxioteam/gatling-debug"
-              dockerfile_path="gatling-debug.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-debug"
-              if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-                image_tags="${release_version}"$'\n'"${release_tag}"$'\n'"${GATLING_VERSION}"
-              else
-                image_tags="latest"
-              fi
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
-              ;;
-            *)
-              echo "Unknown target: ${{ matrix.target }}" >&2
-              exit 1
+            gradle)
+              build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION='"${java_version}"$'\nGRADLE_VERSION='"${GRADLE_VERSION}"$'\nGATLING_VERSION='"${GATLING_VERSION}"
               ;;
           esac
 
@@ -394,13 +358,109 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push image with BuildKit
+      - name: Build and push builder image
         env:
-          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
-          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
-          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
-          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
-          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          IMAGE_NAME: ${{ steps.builder-meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.builder-meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.builder-meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.builder-meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.builder-meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh
+
+      - name: Prepare runtime metadata
+        id: runtime-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_version="${{ needs.prepare-release.outputs.release_version }}"
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
+          tool="${{ matrix.tool }}"
+          java_version="${{ matrix.java-version }}"
+
+          builder_image="galaxioteam/gatling-${tool}-builder"
+          image_name="galaxioteam/gatling-${tool}-runtime"
+          dockerfile_path="gatling-runtime.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-runtime-${java_version}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            builder_version="${java_version}-${release_version}"
+            image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
+          else
+            builder_version="${java_version}"
+            image_tags="${java_version}"
+          fi
+
+          build_args=$'BUILDER_IMAGE='"${builder_image}"$'\nBUILDER_VERSION='"${builder_version}"$'\nBUILDER_TOOL='"${tool}"
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push runtime image
+        env:
+          IMAGE_NAME: ${{ steps.runtime-meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.runtime-meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.runtime-meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.runtime-meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.runtime-meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+        run: ./.github/scripts/buildkit-build.sh
+
+      - name: Prepare debug metadata
+        id: debug-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_version="${{ needs.prepare-release.outputs.release_version }}"
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
+          tool="${{ matrix.tool }}"
+          java_version="${{ matrix.java-version }}"
+
+          runtime_image="galaxioteam/gatling-${tool}-runtime"
+          image_name="galaxioteam/gatling-${tool}-debug"
+          dockerfile_path="gatling-debug.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-debug-${java_version}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            runtime_version="${java_version}-${release_version}"
+            image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
+          else
+            runtime_version="${java_version}"
+            image_tags="${java_version}"
+          fi
+
+          build_args=$'RUNTIME_IMAGE='"${runtime_image}"$'\nRUNTIME_VERSION='"${runtime_version}"
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push debug image
+        env:
+          IMAGE_NAME: ${{ steps.debug-meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.debug-meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.debug-meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.debug-meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.debug-meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
         run: ./.github/scripts/buildkit-build.sh
 
@@ -425,15 +485,62 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  update-readme:
+    name: Update README with image sizes
+    runs-on: ubuntu-24.04
+    needs:
+      - prepare-release
+      - build-cli
+      - build-jdk
+      - build-gatling-chain
+    if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Update README badges and image sizes
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
+        run: |
+          set -euo pipefail
+
+          ./.github/scripts/update-readme.sh
+
+      - name: Commit README update
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet README.md; then
+            echo "No README changes to commit"
+            exit 0
+          fi
+
+          git add README.md
+          git commit -m "docs: update image sizes and badges [skip ci]"
+          git push
+
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/')
     needs:
       - prepare-release
-      - build-base
-      - build-java
-      - build-gatling-images
+      - build-cli
+      - build-jdk
+      - build-gatling-chain
       - changelog
     permissions:
       contents: write
@@ -446,13 +553,19 @@ jobs:
             ${{ needs.changelog.outputs.changelog }}
 
             ## Docker images
-            - `galaxioteam/base:${{ needs.prepare-release.outputs.release_version }}`
-            - `galaxioteam/base-jdk:17-${{ needs.prepare-release.outputs.release_version }}`
-            - `galaxioteam/base-jdk:21-${{ needs.prepare-release.outputs.release_version }}`
-            - `galaxioteam/gatling-sbt-builder:${{ needs.prepare-release.outputs.release_version }}`
-            - `galaxioteam/gatling-maven-builder:${{ needs.prepare-release.outputs.release_version }}`
-            - `galaxioteam/gatling-gradle-builder:${{ needs.prepare-release.outputs.release_version }}`
-            - `galaxioteam/gatling-runtime:${{ needs.prepare-release.outputs.release_version }}`
-            - `galaxioteam/gatling-debug:${{ needs.prepare-release.outputs.release_version }}`
+
+            | Image | Java 17 | Java 21 |
+            |-------|---------|---------|
+            | `galaxioteam/galaxio-cli` | `${{ needs.prepare-release.outputs.release_version }}` | `${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/base-jdk` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-sbt-builder` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-maven-builder` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-gradle-builder` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-sbt-runtime` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-maven-runtime` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-gradle-runtime` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-sbt-debug` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-maven-debug` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
+            | `galaxioteam/gatling-gradle-debug` | `17-${{ needs.prepare-release.outputs.release_version }}` | `21-${{ needs.prepare-release.outputs.release_version }}` |
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

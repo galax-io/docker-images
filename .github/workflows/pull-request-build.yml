@@ -15,10 +15,12 @@ env:
   SBT_VERSION: 1.11.3
   PICATINNY_VERSION: 1.10.4
   GALAXIO_CLI_VERSION: 0.6.1
+  MAVEN_VERSION: 3.9.9
+  GRADLE_VERSION: 8.10.2
 
 jobs:
-  build-base:
-    name: Build base
+  build-cli:
+    name: Build galaxio-cli
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -50,11 +52,11 @@ jobs:
           set -euo pipefail
 
           sha_tag="${GITHUB_SHA}"
-          image_name="galaxioteam/base"
+          image_name="galaxioteam/galaxio-cli"
           dockerfile_path="Dockerfile"
-          cache_ref="${CACHE_REPOSITORY}:base-pr"
+          cache_ref="${CACHE_REPOSITORY}:galaxio-cli-pr"
           image_tags="${sha_tag}"
-          build_args=""
+          build_args="GALAXIO_CLI_VERSION=${GALAXIO_CLI_VERSION}"
 
           {
             echo "image_name=${image_name}"
@@ -79,10 +81,10 @@ jobs:
           PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
-  build-java:
-    name: Build java ${{ matrix.java-version }}
+  build-jdk:
+    name: Build base-jdk ${{ matrix.java-version }}
     runs-on: ubuntu-24.04
-    needs: build-base
+    needs: build-cli
     permissions:
       contents: read
     strategy:
@@ -121,6 +123,7 @@ jobs:
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}-pr"
           image_tags="${{ matrix.java-version }}-${sha_tag}"
+          # PR builds use published latest base image (not pushed in PR)
           build_args=$'BASE_VERSION=latest\nJAVA_VERSION=${{ matrix.java-version }}'
 
           {
@@ -146,20 +149,17 @@ jobs:
           PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh
 
-  build-gatling-images:
-    name: Build ${{ matrix.target }}
+  build-gatling-chain:
+    name: Build gatling-${{ matrix.tool }}-chain (java ${{ matrix.java-version }})
     runs-on: ubuntu-24.04
+    needs: build-jdk
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - gatling-sbt-builder
-          - gatling-maven-builder
-          - gatling-gradle-builder
-          - gatling-runtime
-          - gatling-debug
+        java-version: ['17', '21']
+        tool: ['sbt', 'maven', 'gradle']
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -181,53 +181,32 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Prepare build metadata
-        id: meta
+      - name: Prepare builder metadata
+        id: builder-meta
         shell: bash
         run: |
           set -euo pipefail
 
           sha_tag="${GITHUB_SHA}"
+          tool="${{ matrix.tool }}"
+          java_version="${{ matrix.java-version }}"
 
-          case "${{ matrix.target }}" in
-            gatling-sbt-builder)
-              image_name="galaxioteam/gatling-sbt-builder"
-              dockerfile_path="gatling-sbt-builder.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-sbt-builder-pr"
-              image_tags="${sha_tag}"
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"$'\nGATLING_SBT_VERSION='"${GATLING_SBT_VERSION}"$'\nSBT_VERSION='"${SBT_VERSION}"$'\nPICATINNY_VERSION='"${PICATINNY_VERSION}"$'\nGALAXIO_CLI_VERSION='"${GALAXIO_CLI_VERSION}"
+          image_name="galaxioteam/gatling-${tool}-builder"
+          dockerfile_path="gatling-${tool}-builder.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-builder-${java_version}-pr"
+          image_tags="${java_version}-${sha_tag}"
+          # PR builds use published latest base images
+          base_version="latest"
+
+          case "${tool}" in
+            sbt)
+              build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION='"${java_version}"$'\nSBT_VERSION='"${SBT_VERSION}"$'\nGATLING_VERSION='"${GATLING_VERSION}"$'\nGATLING_SBT_VERSION='"${GATLING_SBT_VERSION}"$'\nPICATINNY_VERSION='"${PICATINNY_VERSION}"
               ;;
-            gatling-maven-builder)
-              image_name="galaxioteam/gatling-maven-builder"
-              dockerfile_path="gatling-maven-builder.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-maven-builder-pr"
-              image_tags="${sha_tag}"
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
+            maven)
+              build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION='"${java_version}"$'\nMAVEN_VERSION='"${MAVEN_VERSION}"$'\nGATLING_VERSION='"${GATLING_VERSION}"
               ;;
-            gatling-gradle-builder)
-              image_name="galaxioteam/gatling-gradle-builder"
-              dockerfile_path="gatling-gradle-builder.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-gradle-builder-pr"
-              image_tags="${sha_tag}"
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
-              ;;
-            gatling-runtime)
-              image_name="galaxioteam/gatling-runtime"
-              dockerfile_path="gatling-runtime.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-runtime-pr"
-              image_tags="${sha_tag}"
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
-              ;;
-            gatling-debug)
-              image_name="galaxioteam/gatling-debug"
-              dockerfile_path="gatling-debug.Dockerfile"
-              cache_ref="${CACHE_REPOSITORY}:gatling-debug-pr"
-              image_tags="${sha_tag}"
-              build_args=$'GATLING_VERSION='"${GATLING_VERSION}"
-              ;;
-            *)
-              echo "Unknown target: ${{ matrix.target }}" >&2
-              exit 1
+            gradle)
+              build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION='"${java_version}"$'\nGRADLE_VERSION='"${GRADLE_VERSION}"$'\nGATLING_VERSION='"${GATLING_VERSION}"
               ;;
           esac
 
@@ -243,13 +222,99 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Build image with BuildKit
+      - name: Build builder image
         env:
-          IMAGE_NAME: ${{ steps.meta.outputs.image_name }}
-          IMAGE_TAGS: ${{ steps.meta.outputs.image_tags }}
-          DOCKERFILE_PATH: ${{ steps.meta.outputs.dockerfile_path }}
-          CACHE_REF: ${{ steps.meta.outputs.cache_ref }}
-          BUILD_ARGS: ${{ steps.meta.outputs.build_args }}
+          IMAGE_NAME: ${{ steps.builder-meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.builder-meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.builder-meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.builder-meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.builder-meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+          PUSH_IMAGE: "false"
+        run: ./.github/scripts/buildkit-build.sh
+
+      - name: Prepare runtime metadata
+        id: runtime-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha_tag="${GITHUB_SHA}"
+          tool="${{ matrix.tool }}"
+          java_version="${{ matrix.java-version }}"
+
+          builder_image="galaxioteam/gatling-${tool}-builder"
+          # PR builds use published latest builder — builder is not pushed in PR
+          builder_version="${java_version}"
+          image_name="galaxioteam/gatling-${tool}-runtime"
+          dockerfile_path="gatling-runtime.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-runtime-${java_version}-pr"
+          image_tags="${java_version}-${sha_tag}"
+
+          build_args=$'BUILDER_IMAGE='"${builder_image}"$'\nBUILDER_VERSION='"${builder_version}"$'\nBUILDER_TOOL='"${tool}"
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build runtime image
+        env:
+          IMAGE_NAME: ${{ steps.runtime-meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.runtime-meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.runtime-meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.runtime-meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.runtime-meta.outputs.build_args }}
+          CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
+          PUSH_IMAGE: "false"
+        run: ./.github/scripts/buildkit-build.sh
+
+      - name: Prepare debug metadata
+        id: debug-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha_tag="${GITHUB_SHA}"
+          tool="${{ matrix.tool }}"
+          java_version="${{ matrix.java-version }}"
+
+          runtime_image="galaxioteam/gatling-${tool}-runtime"
+          # PR builds use published latest runtime — runtime is not pushed in PR
+          runtime_version="${java_version}"
+          image_name="galaxioteam/gatling-${tool}-debug"
+          dockerfile_path="gatling-debug.Dockerfile"
+          cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-debug-${java_version}-pr"
+          image_tags="${java_version}-${sha_tag}"
+
+          build_args=$'RUNTIME_IMAGE='"${runtime_image}"$'\nRUNTIME_VERSION='"${runtime_version}"
+
+          {
+            echo "image_name=${image_name}"
+            echo "dockerfile_path=${dockerfile_path}"
+            echo "cache_ref=${cache_ref}"
+            echo "image_tags<<EOF"
+            printf '%s\n' "${image_tags}"
+            echo "EOF"
+            echo "build_args<<EOF"
+            printf '%s\n' "${build_args}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build debug image
+        env:
+          IMAGE_NAME: ${{ steps.debug-meta.outputs.image_name }}
+          IMAGE_TAGS: ${{ steps.debug-meta.outputs.image_tags }}
+          DOCKERFILE_PATH: ${{ steps.debug-meta.outputs.dockerfile_path }}
+          CACHE_REF: ${{ steps.debug-meta.outputs.cache_ref }}
+          BUILD_ARGS: ${{ steps.debug-meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
           PUSH_IMAGE: "false"
         run: ./.github/scripts/buildkit-build.sh

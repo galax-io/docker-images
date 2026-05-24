@@ -1,6 +1,7 @@
 .git
 .github
 .idea
+.claude
 *.iml
 **/.DS_Store
 **/target
@@ -10,3 +11,7 @@
 **/.coursier
 **/.ivy2
 **/.sbt
+tests/
+agents.md
+README.md
+LICENSE

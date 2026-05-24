@@ -46,14 +46,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 COPY --from=tools --link /usr/local/bin/galaxio /usr/local/bin/galaxio
 
 RUN groupadd --gid 65532 nonroot && \
-    useradd --uid 65532 --gid 65532 --no-create-home --shell /usr/sbin/nologin nonroot
+    useradd --uid 65532 --gid 65532 --create-home --home-dir /home/nonroot --shell /usr/sbin/nologin nonroot
 
 ENV HOME=/home/nonroot \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     TZ=UTC
 
-WORKDIR /workspace
+WORKDIR /home/nonroot
 USER nonroot:nonroot
 
 RUN galaxio version

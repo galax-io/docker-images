@@ -147,9 +147,9 @@ BaseUrl: https://computer-database.gatling.io
 BaseAuthUrl: https://computer-database.gatling.io/auth
 WsBaseUrl: wss://computer-database.gatling.io/ws
 ScenarioName: Warmup flow
-KafkaPluginEnabled: "false"
-JdbcPluginEnabled: "false"
-AmqpPluginEnabled: "false"
+KafkaPluginEnabled: "true"
+JdbcPluginEnabled: "true"
+AmqpPluginEnabled: "true"
 StartupBannerEnabled: "false"
 DiagnosticsEnabled: "false"
 EOF

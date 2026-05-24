@@ -5,23 +5,18 @@ ARG SBT_VERSION=1.11.3
 ARG GATLING_VERSION=3.13.5
 ARG GATLING_SBT_VERSION=4.18.1
 ARG PICATINNY_VERSION=1.12.3
-ARG SCALAFMT_VERSION=2.6.1
-ARG KAFKA_PLUGIN_VERSION=0.22.0
-ARG JDBC_PLUGIN_VERSION=0.19.0
-ARG AMQP_PLUGIN_VERSION=1.2.0
+ARG GALAXIO_CLI_VERSION=0.6.1
 
 # Warmup: official sbt image (has JDK + sbt + scala + bash + curl)
-# Creates an inline Gatling project to pre-download all dependencies into Coursier cache
+# Uses `galaxio template init` with all plugins (kafka, jdbc, amqp) enabled
+# to warm the real dependency graph into Coursier cache
 FROM sbtscala/scala-sbt:eclipse-temurin-21.0.7_6_${SBT_VERSION}_2.13.16 AS warmup
 
 ARG SBT_VERSION
 ARG GATLING_VERSION
 ARG GATLING_SBT_VERSION
 ARG PICATINNY_VERSION
-ARG SCALAFMT_VERSION
-ARG KAFKA_PLUGIN_VERSION
-ARG JDBC_PLUGIN_VERSION
-ARG AMQP_PLUGIN_VERSION
+ARG GALAXIO_CLI_VERSION
 
 ENV HOME=/home/sbtuser \
     SBT_HOME=/home/sbtuser/.sbt \
@@ -32,38 +27,25 @@ ENV HOME=/home/sbtuser \
               -Dsbt.global.base=/home/sbtuser/.sbt \
               -Dcoursier.cache=/home/sbtuser/.cache/coursier/v1"
 
+USER root
+RUN curl -fsSL \
+      "https://github.com/galax-io/galaxio-cli/releases/download/v${GALAXIO_CLI_VERSION}/galaxio_${GALAXIO_CLI_VERSION}_linux_amd64.tar.gz" \
+      | tar -xz -C /usr/local/bin galaxio && \
+    chmod 0755 /usr/local/bin/galaxio
+
 USER sbtuser
 WORKDIR /home/sbtuser
 
-RUN mkdir -p warmup/project warmup/src/test/scala && \
-    printf 'addSbtPlugin("io.gatling" %% "gatling-sbt" %% "%s")\n' "${GATLING_SBT_VERSION}" \
-      > warmup/project/plugins.sbt && \
-    printf 'addSbtPlugin("org.scalameta" %% "sbt-scalafmt" %% "%s")\n' "${SCALAFMT_VERSION}" \
-      >> warmup/project/plugins.sbt
+COPY --chown=sbtuser:sbtuser resources/sbt-warmup.sh /home/sbtuser/sbt-warmup.sh
 
-# Mirrors the real galaxio template dependency graph + all Galaxio plugins.
-RUN cat > warmup/build.sbt <<EOF
-scalaVersion := "2.13.16"
-enablePlugins(GatlingPlugin)
-libraryDependencies ++= Seq(
-  "io.gatling.highcharts" % "gatling-charts-highcharts" % "${GATLING_VERSION}"        % Test,
-  "org.galaxio"          %% "gatling-picatinny"         % "${PICATINNY_VERSION}"      % Test,
-  "org.galaxio"          %% "gatling-kafka-plugin"      % "${KAFKA_PLUGIN_VERSION}"   % Test,
-  "org.galaxio"          %% "gatling-jdbc-plugin"       % "${JDBC_PLUGIN_VERSION}"    % Test,
-  "org.galaxio"          %% "gatling-amqp-plugin"       % "${AMQP_PLUGIN_VERSION}"    % Test
-)
-EOF
-
-RUN cat > warmup/src/test/scala/WarmupSimulation.scala <<'EOF'
-import io.gatling.core.Predef._
-class WarmupSimulation extends Simulation
-EOF
-
-RUN cd warmup && \
-    sbt "Gatling / compile" && \
-    cd .. && rm -rf warmup && \
-    find /home/sbtuser/.sbt/ -name "*.lock" -delete 2>/dev/null || true && \
-    find /home/sbtuser/.cache/ -name "*.lock" -delete 2>/dev/null || true
+RUN chmod +x /home/sbtuser/sbt-warmup.sh && \
+    /home/sbtuser/sbt-warmup.sh \
+      "${SBT_VERSION}" \
+      "${GATLING_VERSION}" \
+      "${PICATINNY_VERSION}" \
+      "${GATLING_SBT_VERSION}" && \
+    find /home/sbtuser/.sbt/ -name "*.lock" -type f -delete && \
+    find /home/sbtuser/.cache/ -name "*.lock" -type f -delete
 
 
 FROM galaxioteam/base-jdk:${JAVA_VERSION}-${BASE_VERSION}

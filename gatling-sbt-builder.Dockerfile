@@ -6,65 +6,50 @@ ARG GATLING_VERSION=3.13.5
 ARG GATLING_SBT_VERSION=4.18.1
 ARG PICATINNY_VERSION=1.12.3
 
-FROM sbtscala/scala-sbt:eclipse-temurin-21.0.7_6_${SBT_VERSION}_2.13.16 AS tool-src
-
-
-FROM galaxioteam/base-jdk:${JAVA_VERSION}-${BASE_VERSION} AS jdk-src
-
-
-FROM debian:bookworm-slim AS warmup
+# Warmup: official sbt image (has JDK + sbt + scala + bash + curl)
+# Creates an inline Gatling project to pre-download all dependencies into Coursier cache
+FROM sbtscala/scala-sbt:eclipse-temurin-21.0.7_6_${SBT_VERSION}_2.13.16 AS warmup
 
 ARG SBT_VERSION
 ARG GATLING_VERSION
 ARG GATLING_SBT_VERSION
 ARG PICATINNY_VERSION
 
-ENV JAVA_HOME=/opt/java/openjdk \
-    PATH=/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    HOME=/home/sbtuser \
+ENV HOME=/home/sbtuser \
     SBT_HOME=/home/sbtuser/.sbt \
     COURSIER_CACHE=/home/sbtuser/.cache/coursier/v1 \
-    SBT_OPTS="-Dconfig.override_with_env_vars=true -Dfile.encoding=UTF-8 -Dsbt.rootdir=true -Dsbt.ci=true" \
-    LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8 \
-    TZ=UTC
-
-SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-      bash \
-      ca-certificates \
-      curl
-
-# Copy JDK from published base-jdk
-COPY --from=jdk-src --link /opt/java/openjdk/ /opt/java/openjdk/
-
-# Copy sbt + scala from official sbt image
-COPY --from=tool-src --link /usr/share/sbt/ /usr/share/sbt/
-COPY --from=tool-src --link /usr/share/scala/ /usr/share/scala/
-COPY --from=tool-src --link /usr/local/bin/sbt /usr/local/bin/sbt
-
-# Copy galaxio-cli
-COPY --from=jdk-src --link /usr/local/bin/galaxio /usr/local/bin/galaxio
-
-RUN groupadd --gid 10001 sbtuser && \
-    useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash sbtuser
-
-RUN mkdir -p "${COURSIER_CACHE}" "${SBT_HOME}/boot" && \
-    chown -R sbtuser:sbtuser /home/sbtuser
+    SBT_OPTS="-Dsbt.ci=true \
+              -Dfile.encoding=UTF-8 \
+              -Dsbt.boot.directory=/home/sbtuser/.sbt/boot \
+              -Dsbt.global.base=/home/sbtuser/.sbt \
+              -Dcoursier.cache=/home/sbtuser/.cache/coursier/v1"
 
 USER sbtuser
 WORKDIR /home/sbtuser
 
-COPY --chown=sbtuser:sbtuser resources/.sbtopts resources/sbt-warmup.sh /home/sbtuser/
+RUN mkdir -p warmup/project warmup/src/test/scala && \
+    printf 'addSbtPlugin("io.gatling" %% "gatling-sbt" %% "%s")\n' "${GATLING_SBT_VERSION}" \
+      > warmup/project/plugins.sbt
 
-RUN chmod 0555 ./sbt-warmup.sh && \
-    ./sbt-warmup.sh "${SBT_VERSION}" "${GATLING_VERSION}" "${PICATINNY_VERSION}" "${GATLING_SBT_VERSION}" && \
-    find "${SBT_HOME}/" -name "*.lock" -type f -delete && \
-    rm -f ./sbt-warmup.sh
+RUN cat > warmup/build.sbt <<EOF
+scalaVersion := "2.13.16"
+enablePlugins(GatlingPlugin)
+libraryDependencies ++= Seq(
+  "io.gatling.highcharts" % "gatling-charts-highcharts" % "${GATLING_VERSION}" % Test,
+  "ru.tinkoff" %% "gatling-picatinny" % "${PICATINNY_VERSION}" % Test
+)
+EOF
+
+RUN cat > warmup/src/test/scala/WarmupSimulation.scala <<'EOF'
+import io.gatling.core.Predef._
+class WarmupSimulation extends Simulation
+EOF
+
+RUN cd warmup && \
+    sbt "Gatling / compile" && \
+    cd .. && rm -rf warmup && \
+    find /home/sbtuser/.sbt/ -name "*.lock" -delete 2>/dev/null || true && \
+    find /home/sbtuser/.cache/ -name "*.lock" -delete 2>/dev/null || true
 
 
 FROM galaxioteam/base-jdk:${JAVA_VERSION}-${BASE_VERSION}
@@ -74,14 +59,12 @@ LABEL authors="i.akhaltsev"
 LABEL org.opencontainers.image.title="galaxioteam/gatling-sbt-builder"
 LABEL org.opencontainers.image.description="Builder image for Gatling Scala/SBT projects with warmed Coursier and SBT caches."
 
-ARG SBT_VERSION
+# sbt + scala binaries from warmup stage
+COPY --from=warmup --link /usr/share/sbt/ /usr/share/sbt/
+COPY --from=warmup --link /usr/share/scala/ /usr/share/scala/
+COPY --from=warmup --link /usr/local/bin/sbt /usr/local/bin/sbt
 
-# sbt + scala binaries
-COPY --from=tool-src --link /usr/share/sbt/ /usr/share/sbt/
-COPY --from=tool-src --link /usr/share/scala/ /usr/share/scala/
-COPY --from=tool-src --link /usr/local/bin/sbt /usr/local/bin/sbt
-
-# Warmed caches from warmup stage
+# Warmed dependency caches
 COPY --from=warmup --link --chown=65532:65532 /home/sbtuser/.sbt/ /home/nonroot/.sbt/
 COPY --from=warmup --link --chown=65532:65532 /home/sbtuser/.cache/ /home/nonroot/.cache/
 
@@ -93,8 +76,20 @@ ENV HOME=/home/nonroot \
     COURSIER_CACHE=/home/nonroot/.cache/coursier/v1 \
     SCALA_HOME=/usr/share/scala \
     JAVA_OPTS_COMMON="-Dconfig.override_with_env_vars=true -Dfile.encoding=UTF-8" \
-    SBT_OPTS="-Dconfig.override_with_env_vars=true -Dfile.encoding=UTF-8 -Dsbt.rootdir=true -Dsbt.ci=true" \
-    GATLING_JAVA_OPTS="-Dconfig.override_with_env_vars=true -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError -XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=80.0 -XX:+UseG1GC"
+    SBT_OPTS="-Dconfig.override_with_env_vars=true \
+              -Dfile.encoding=UTF-8 \
+              -Dsbt.rootdir=true \
+              -Dsbt.ci=true \
+              -Dsbt.boot.directory=/home/nonroot/.sbt/boot \
+              -Dsbt.global.base=/home/nonroot/.sbt \
+              -Dcoursier.cache=/home/nonroot/.cache/coursier/v1" \
+    GATLING_JAVA_OPTS="-Dconfig.override_with_env_vars=true \
+                       -Dfile.encoding=UTF-8 \
+                       -XX:+HeapDumpOnOutOfMemoryError \
+                       -XX:InitialRAMPercentage=50.0 \
+                       -XX:MaxRAMPercentage=80.0 \
+                       -XX:+UseG1GC" \
+    PATH=/opt/java/openjdk/bin:/usr/local/bin:/usr/share/scala/bin:/usr/bin:/bin
 
 WORKDIR /home/nonroot
 USER nonroot:nonroot

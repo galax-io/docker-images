@@ -22,13 +22,26 @@ RUN rm -rf \
       /opt/java/openjdk/man
 
 
+# Collect bash + libtinfo for distroless base
+FROM debian:bookworm-slim AS bash-src
+
+RUN mkdir -p /bash-root/usr/bin /bash-root/usr/lib/x86_64-linux-gnu && \
+    cp -L /usr/bin/bash /bash-root/usr/bin/bash && \
+    ln -sf bash /bash-root/usr/bin/sh && \
+    cp -L /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /bash-root/usr/lib/x86_64-linux-gnu/libtinfo.so.6
+
+
 FROM galaxioteam/galaxio-cli:${BASE_VERSION}
 
 LABEL maintainer="Galaxio Team"
 LABEL authors="i.akhaltsev"
 LABEL org.opencontainers.image.title="galaxioteam/base-jdk"
-LABEL org.opencontainers.image.description="Galaxio CLI base with JDK. Foundation for all Gatling builder images."
+LABEL org.opencontainers.image.description="Galaxio CLI base with JDK and bash. Foundation for all Gatling builder images."
 
+# Add bash (required by downstream build tool scripts: sbt, mvn, gradle)
+COPY --from=bash-src /bash-root/ /
+
+# Add JDK
 COPY --from=jdk --link /opt/java/openjdk/ /opt/java/openjdk/
 
 ENV JAVA_HOME=/opt/java/openjdk \
@@ -38,7 +51,7 @@ ENV JAVA_HOME=/opt/java/openjdk \
     PATH=/opt/java/openjdk/bin:/usr/local/bin:/usr/bin:/bin \
     TZ=UTC
 
-WORKDIR /workspace
+WORKDIR /home/nonroot
 USER nonroot:nonroot
 
 RUN java --version && javac --version && galaxio version

@@ -25,25 +25,27 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       netcat-openbsd \
       procps
 
-# Collect binaries and their shared library dependencies
-RUN mkdir -p /debug-root/usr/bin /debug-root/usr/lib /debug-root/lib/x86_64-linux-gnu && \
-    for bin in curl git jq nc ps; do \
-      bin_path="$(command -v "${bin}" || command -v "nc")" && \
-      cp -L "${bin_path}" /debug-root/usr/bin/"${bin}" && \
-      ldd "${bin_path}" 2>/dev/null | awk '/=>/{print $3}' | while read -r lib; do \
-        [ -f "${lib}" ] && cp -L "${lib}" /debug-root/usr/lib/ || true; \
-      done; \
-    done && \
-    # Copy git and its support programs
+# Collect binaries and their shared library dependencies.
+# Everything under /debug-root/usr/ — avoids conflict with /lib -> usr/lib symlink in target image.
+RUN mkdir -p /debug-root/usr/bin /debug-root/usr/lib/x86_64-linux-gnu && \
+    cp -L /usr/bin/curl /debug-root/usr/bin/curl && \
+    cp -L /usr/bin/git  /debug-root/usr/bin/git  && \
+    cp -L /usr/bin/jq   /debug-root/usr/bin/jq   && \
+    cp -L /usr/bin/nc   /debug-root/usr/bin/nc   && \
+    ln -sf nc /debug-root/usr/bin/netcat          && \
+    cp -L /usr/bin/ps   /debug-root/usr/bin/ps   && \
     cp -rL /usr/lib/git-core/ /debug-root/usr/lib/git-core/ && \
     cp -rL /usr/share/git-core/ /debug-root/usr/share/ || true && \
-    # Copy common shared libs
-    cp -L /lib/x86_64-linux-gnu/libz.so.1 /debug-root/lib/x86_64-linux-gnu/ || true && \
-    cp -L /usr/lib/x86_64-linux-gnu/libcurl.so.4 /debug-root/usr/lib/ || true && \
-    cp -L /usr/lib/x86_64-linux-gnu/libssl.so.3 /debug-root/usr/lib/ || true && \
-    cp -L /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /debug-root/usr/lib/ || true && \
-    cp -L /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 /debug-root/usr/lib/ || true && \
-    cp -L /usr/lib/x86_64-linux-gnu/libidn2.so.0 /debug-root/usr/lib/ || true
+    for bin in /debug-root/usr/bin/curl /debug-root/usr/bin/jq \
+               /debug-root/usr/bin/nc   /debug-root/usr/bin/ps \
+               /debug-root/usr/bin/git; do \
+      ldd "${bin}" 2>/dev/null \
+        | awk '/=>[[:space:]]\// { print $3 }' \
+        | while read -r lib; do \
+            [ -f "${lib}" ] && \
+              cp -L "${lib}" /debug-root/usr/lib/x86_64-linux-gnu/ 2>/dev/null || true; \
+          done; \
+    done
 
 
 FROM ${RUNTIME_IMAGE}:${RUNTIME_VERSION}
@@ -56,9 +58,6 @@ USER root
 
 COPY --from=debug-tools --link /debug-root/usr/bin/ /usr/bin/
 COPY --from=debug-tools --link /debug-root/usr/lib/ /usr/lib/
-COPY --from=debug-tools --link /debug-root/lib/ /lib/
-
-RUN ln -sf /usr/bin/nc /usr/bin/netcat || true
 
 USER nonroot:nonroot
 

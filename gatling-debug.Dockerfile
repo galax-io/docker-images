@@ -1,44 +1,65 @@
-ARG JAVA_VERSION=21
-ARG GATLING_VERSION=3.13.5
+# syntax=docker/dockerfile:1
+# Parameterized debug image built from a runtime image.
+# Adds curl, git, jq, netcat, procps for troubleshooting.
+#
+# Build examples:
+#   docker build --build-arg RUNTIME_IMAGE=galaxioteam/gatling-sbt-runtime -f gatling-debug.Dockerfile .
+#   docker build --build-arg RUNTIME_IMAGE=galaxioteam/gatling-maven-runtime -f gatling-debug.Dockerfile .
+#   docker build --build-arg RUNTIME_IMAGE=galaxioteam/gatling-gradle-runtime -f gatling-debug.Dockerfile .
 
-FROM eclipse-temurin:${JAVA_VERSION}-jdk-jammy
+ARG RUNTIME_IMAGE=galaxioteam/gatling-sbt-runtime
+ARG RUNTIME_VERSION=latest
+
+
+FROM debian:bookworm-slim AS debug-tools
+
+SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      curl \
+      git \
+      jq \
+      netcat-openbsd \
+      procps
+
+# Collect binaries and their shared library dependencies
+RUN mkdir -p /debug-root/usr/bin /debug-root/usr/lib /debug-root/lib/x86_64-linux-gnu && \
+    for bin in curl git jq nc ps; do \
+      bin_path="$(command -v "${bin}" || command -v "nc")" && \
+      cp -L "${bin_path}" /debug-root/usr/bin/"${bin}" && \
+      ldd "${bin_path}" 2>/dev/null | awk '/=>/{print $3}' | while read -r lib; do \
+        [ -f "${lib}" ] && cp -L "${lib}" /debug-root/usr/lib/ || true; \
+      done; \
+    done && \
+    # Copy git and its support programs
+    cp -rL /usr/lib/git-core/ /debug-root/usr/lib/git-core/ && \
+    cp -rL /usr/share/git-core/ /debug-root/usr/share/ || true && \
+    # Copy common shared libs
+    cp -L /lib/x86_64-linux-gnu/libz.so.1 /debug-root/lib/x86_64-linux-gnu/ || true && \
+    cp -L /usr/lib/x86_64-linux-gnu/libcurl.so.4 /debug-root/usr/lib/ || true && \
+    cp -L /usr/lib/x86_64-linux-gnu/libssl.so.3 /debug-root/usr/lib/ || true && \
+    cp -L /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /debug-root/usr/lib/ || true && \
+    cp -L /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 /debug-root/usr/lib/ || true && \
+    cp -L /usr/lib/x86_64-linux-gnu/libidn2.so.0 /debug-root/usr/lib/ || true
+
+
+FROM ${RUNTIME_IMAGE}:${RUNTIME_VERSION}
 
 LABEL maintainer="Galaxio Team"
 LABEL authors="i.akhaltsev"
-LABEL org.opencontainers.image.title="galaxioteam/gatling-debug"
-LABEL org.opencontainers.image.description="Debug-friendly Gatling 3.13 image with shell and network tooling."
+LABEL org.opencontainers.image.description="Gatling debug image. Adds curl, git, jq, netcat, procps for troubleshooting."
 
-ARG GATLING_VERSION
+USER root
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    GATLING_HOME=/opt/gatling \
-    LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8 \
-    MAVEN_OPTS="-Djava.awt.headless=true -Dfile.encoding=UTF-8" \
-    TZ=UTC
+COPY --from=debug-tools --link /debug-root/usr/bin/ /usr/bin/
+COPY --from=debug-tools --link /debug-root/usr/lib/ /usr/lib/
+COPY --from=debug-tools --link /debug-root/lib/ /lib/
 
-SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
-WORKDIR /opt
+RUN ln -sf /usr/bin/nc /usr/bin/netcat || true
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl git jq netcat-openbsd procps unzip && \
-    rm -rf /var/lib/apt/lists/*
+USER nonroot:nonroot
 
-RUN curl -fsSLo /tmp/gatling.zip \
-      "https://repo1.maven.org/maven2/io/gatling/highcharts/gatling-charts-highcharts-bundle/${GATLING_VERSION}/gatling-charts-highcharts-bundle-${GATLING_VERSION}.zip" && \
-    unzip -q /tmp/gatling.zip -d /opt && \
-    mv "/opt/gatling-charts-highcharts-bundle-${GATLING_VERSION}" "${GATLING_HOME}" && \
-    rm -f /tmp/gatling.zip
-
-RUN cd "${GATLING_HOME}" && \
-    ./mvnw -q -DskipTests test-compile gatling:help && \
-    find "${GATLING_HOME}/.m2" -name "*.lastUpdated" -type f -delete
-
-RUN useradd --create-home --home-dir /home/gatling --shell /bin/bash --uid 10001 gatling && \
-    chown -R gatling:gatling /opt/gatling /home/gatling
-
-USER gatling
-WORKDIR /opt/gatling
-
-ENTRYPOINT ["/bin/bash", "-lc"]
-CMD ["./mvnw -o test gatling:test"]
+RUN curl --version && git --version && jq --version && galaxio version

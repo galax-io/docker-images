@@ -1,0 +1,54 @@
+name: PR Image Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    name: Delete PR images from Docker Hub
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Delete SHA-tagged PR images
+        shell: bash
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          SHA_TAG: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          token="$(curl -fsSL \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"${DOCKER_USERNAME}\",\"password\":\"${DOCKER_PASSWORD}\"}" \
+            "https://hub.docker.com/v2/users/login/" \
+            | grep -o '"token":"[^"]*"' | cut -d'"' -f4)"
+
+          delete_tag() {
+            local repo="${1}"
+            local tag="${2}"
+            local status
+            status="$(curl -o /dev/null -w '%{http_code}' -fsSL -X DELETE \
+              -H "Authorization: JWT ${token}" \
+              "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}/" 2>/dev/null || true)"
+            printf 'DELETE %s:%s → %s\n' "${repo}" "${tag}" "${status}"
+          }
+
+          # galaxio-cli
+          delete_tag "galaxioteam/galaxio-cli" "${SHA_TAG}"
+
+          # base-jdk per java version
+          for java_version in 17 21; do
+            delete_tag "galaxioteam/base-jdk" "${java_version}-${SHA_TAG}"
+          done
+
+          # gatling chains per tool and java version
+          for tool in sbt maven gradle; do
+            for java_version in 17 21; do
+              delete_tag "galaxioteam/gatling-${tool}-builder" "${java_version}-${SHA_TAG}"
+              delete_tag "galaxioteam/gatling-${tool}-runtime" "${java_version}-${SHA_TAG}"
+              delete_tag "galaxioteam/gatling-${tool}-debug" "${java_version}-${SHA_TAG}"
+            done
+          done

@@ -124,7 +124,7 @@ LABEL org.opencontainers.image.title="galaxioteam/gatling-maven-builder"
 LABEL org.opencontainers.image.description="Builder image for Gatling Maven projects with warmed local repository."
 
 COPY --from=tool-src --link /usr/share/maven/ /usr/share/maven/
-COPY --from=warmup --link --chown=nonroot:nonroot /home/gatling/.m2/ /home/nonroot/.m2/
+COPY --from=warmup --link --chown=65532:65532 /home/gatling/.m2/ /home/nonroot/.m2/
 
 ENV HOME=/home/nonroot \
     LANG=C.UTF-8 \

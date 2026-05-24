@@ -108,7 +108,7 @@ LABEL org.opencontainers.image.title="galaxioteam/gatling-gradle-builder"
 LABEL org.opencontainers.image.description="Builder image for Gatling Gradle projects with warmed Gradle caches."
 
 COPY --from=tool-src --link /opt/gradle/ /opt/gradle/
-COPY --from=warmup --link --chown=nonroot:nonroot /home/gradle/.gradle/ /home/nonroot/.gradle/
+COPY --from=warmup --link --chown=65532:65532 /home/gradle/.gradle/ /home/nonroot/.gradle/
 
 ENV HOME=/home/nonroot \
     LANG=C.UTF-8 \

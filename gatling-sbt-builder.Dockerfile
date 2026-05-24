@@ -82,8 +82,8 @@ COPY --from=tool-src --link /usr/share/scala/ /usr/share/scala/
 COPY --from=tool-src --link /usr/local/bin/sbt /usr/local/bin/sbt
 
 # Warmed caches from warmup stage
-COPY --from=warmup --link --chown=nonroot:nonroot /home/sbtuser/.sbt/ /home/nonroot/.sbt/
-COPY --from=warmup --link --chown=nonroot:nonroot /home/sbtuser/.cache/ /home/nonroot/.cache/
+COPY --from=warmup --link --chown=65532:65532 /home/sbtuser/.sbt/ /home/nonroot/.sbt/
+COPY --from=warmup --link --chown=65532:65532 /home/sbtuser/.cache/ /home/nonroot/.cache/
 
 ENV HOME=/home/nonroot \
     LANG=C.UTF-8 \

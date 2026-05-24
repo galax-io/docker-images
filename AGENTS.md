@@ -8,16 +8,14 @@ Use Docker skills: `docker-syntax-dockerfile`, `docker-syntax-buildkit`, `docker
 
 Every image `FROM` the previous. Never break this chain.
 
-```
-gcr.io/distroless/base-debian12:nonroot
-└── galaxioteam/base             (Dockerfile)
-    └── galaxioteam/base-jdk     (java.Dockerfile)              × java 17, 21
-        ├── gatling-sbt-builder  → gatling-sbt-runtime  → gatling-sbt-debug
-        ├── gatling-maven-builder→ gatling-maven-runtime→ gatling-maven-debug
-        └── gatling-gradle-builder→gatling-gradle-runtime→gatling-gradle-debug
+galaxioteam/galaxio              (external: github.com/galax-io/galaxio-cli, always latest)
+└── galaxioteam/base-jdk         (java.Dockerfile)              × java 17, 21
+    ├── gatling-sbt-builder  → gatling-sbt-runtime  → gatling-sbt-debug
+    ├── gatling-maven-builder→ gatling-maven-runtime→ gatling-maven-debug
+    └── gatling-gradle-builder→gatling-gradle-runtime→gatling-gradle-debug
 ```
 
-7 Dockerfiles → 21 image tags. Builders warm dependency caches (Coursier/.sbt, .m2, .gradle) so containers don't re-download at runtime.
+6 Dockerfiles → 20 image tags. Base image (`galaxioteam/galaxio`) built externally, versioned independently. Builders warm dependency caches (Coursier/.sbt, .m2, .gradle) so containers don't re-download at runtime.
 
 ## Conventions
 
@@ -43,7 +41,7 @@ gcr.io/distroless/base-debian12:nonroot
 ## PR Workflow
 
 1. **Branch**: feature branch off `main`
-2. **Pre-commit checks**: `shellcheck resources/*.sh`, `hadolint *.Dockerfile Dockerfile`
+2. **Pre-commit checks**: `shellcheck resources/*.sh`, `hadolint *.Dockerfile`
 3. **Commits**: squash semantically — each commit must be green (CI passes). No red commits on `main`
 4. **Merge strategy**: always **rebase + merge** (no merge commits)
 5. **PR CI** (`pull-request-build.yml`): build-only, `BASE_VERSION=latest`, no Hub push
@@ -52,8 +50,9 @@ gcr.io/distroless/base-debian12:nonroot
 ## CI DAG
 
 ```
-prepare-release → build-cli → build-jdk [17, 21] → build-chains [sbt, maven, gradle] × [17, 21]
-                                                     each chain: builder → runtime → debug
+prepare-release → build-jdk [17, 21] → build-chains [sbt, maven, gradle] × [17, 21]
+                                         each chain: builder → runtime → debug
 ```
 
+Triggers: push to main, `v*` tags, weekly schedule (Monday 06:00 UTC), manual dispatch.
 `update-readme` job auto-updates image sizes in README after publish.

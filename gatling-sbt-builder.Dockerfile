@@ -4,8 +4,11 @@ ARG BASE_VERSION=latest
 ARG SBT_VERSION=1.11.3
 ARG GATLING_VERSION=3.13.5
 ARG GATLING_SBT_VERSION=4.18.1
-ARG PICATINNY_VERSION=1.12.3
+ARG PICATINNY_VERSION=0.17.1
 ARG SCALAFMT_VERSION=2.6.1
+ARG KAFKA_PLUGIN_VERSION=1.0.0-RC1
+ARG JDBC_PLUGIN_VERSION=0.13.0
+ARG AMQP_PLUGIN_VERSION=0.13.0
 
 # Warmup: official sbt image (has JDK + sbt + scala + bash + curl)
 # Creates an inline Gatling project to pre-download all dependencies into Coursier cache
@@ -16,6 +19,9 @@ ARG GATLING_VERSION
 ARG GATLING_SBT_VERSION
 ARG PICATINNY_VERSION
 ARG SCALAFMT_VERSION
+ARG KAFKA_PLUGIN_VERSION
+ARG JDBC_PLUGIN_VERSION
+ARG AMQP_PLUGIN_VERSION
 
 ENV HOME=/home/sbtuser \
     SBT_HOME=/home/sbtuser/.sbt \
@@ -35,15 +41,16 @@ RUN mkdir -p warmup/project warmup/src/test/scala && \
     printf 'addSbtPlugin("org.scalameta" %% "sbt-scalafmt" %% "%s")\n' "${SCALAFMT_VERSION}" \
       >> warmup/project/plugins.sbt
 
-# Mirrors the real galaxio template (templates-gatling scala-sbt) dependency graph.
-# gatling-test-framework excluded — gatling-sbt uses Gatling/test, not sbt test.
-# janino excluded — optional Logback runtime, not a build dependency.
+# Mirrors the real galaxio template dependency graph + all Galaxio plugins.
 RUN cat > warmup/build.sbt <<EOF
 scalaVersion := "2.13.16"
 enablePlugins(GatlingPlugin)
 libraryDependencies ++= Seq(
-  "io.gatling.highcharts" % "gatling-charts-highcharts" % "${GATLING_VERSION}" % Test,
-  "org.galaxio"          %% "gatling-picatinny"         % "${PICATINNY_VERSION}" % Test
+  "io.gatling.highcharts" % "gatling-charts-highcharts" % "${GATLING_VERSION}"        % Test,
+  "org.galaxio"          %% "gatling-picatinny"         % "${PICATINNY_VERSION}"      % Test,
+  "org.galaxio"          %% "gatling-kafka-plugin"      % "${KAFKA_PLUGIN_VERSION}"   % Test,
+  "org.galaxio"          %% "gatling-jdbc-plugin"       % "${JDBC_PLUGIN_VERSION}"    % Test,
+  "org.galaxio"          %% "gatling-amqp-plugin"       % "${AMQP_PLUGIN_VERSION}"    % Test
 )
 EOF
 

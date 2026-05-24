@@ -29,14 +29,19 @@ WORKDIR /home/sbtuser
 
 RUN mkdir -p warmup/project warmup/src/test/scala && \
     printf 'addSbtPlugin("io.gatling" %% "gatling-sbt" %% "%s")\n' "${GATLING_SBT_VERSION}" \
-      > warmup/project/plugins.sbt
+      > warmup/project/plugins.sbt && \
+    printf 'addSbtPlugin("org.scalameta" %% "sbt-scalafmt" %% "2.5.4")\n' \
+      >> warmup/project/plugins.sbt
 
+# Mirrors the real galaxio template (templates-gatling scala-sbt) dependency graph
 RUN cat > warmup/build.sbt <<EOF
 scalaVersion := "2.13.16"
 enablePlugins(GatlingPlugin)
 libraryDependencies ++= Seq(
   "io.gatling.highcharts" % "gatling-charts-highcharts" % "${GATLING_VERSION}" % Test,
-  "ru.tinkoff" %% "gatling-picatinny" % "${PICATINNY_VERSION}" % Test
+  "io.gatling"            % "gatling-test-framework"    % "${GATLING_VERSION}" % Test,
+  "ru.tinkoff"           %% "gatling-picatinny"         % "${PICATINNY_VERSION}" % Test,
+  "org.codehaus.janino"   % "janino"                    % "3.1.12"           % Test
 )
 EOF
 

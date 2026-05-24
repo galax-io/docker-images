@@ -5,6 +5,7 @@ ARG SBT_VERSION=1.11.3
 ARG GATLING_VERSION=3.13.5
 ARG GATLING_SBT_VERSION=4.18.1
 ARG PICATINNY_VERSION=1.12.3
+ARG SCALAFMT_VERSION=2.6.1
 
 # Warmup: official sbt image (has JDK + sbt + scala + bash + curl)
 # Creates an inline Gatling project to pre-download all dependencies into Coursier cache
@@ -14,6 +15,7 @@ ARG SBT_VERSION
 ARG GATLING_VERSION
 ARG GATLING_SBT_VERSION
 ARG PICATINNY_VERSION
+ARG SCALAFMT_VERSION
 
 ENV HOME=/home/sbtuser \
     SBT_HOME=/home/sbtuser/.sbt \
@@ -30,7 +32,7 @@ WORKDIR /home/sbtuser
 RUN mkdir -p warmup/project warmup/src/test/scala && \
     printf 'addSbtPlugin("io.gatling" %% "gatling-sbt" %% "%s")\n' "${GATLING_SBT_VERSION}" \
       > warmup/project/plugins.sbt && \
-    printf 'addSbtPlugin("org.scalameta" %% "sbt-scalafmt" %% "2.5.4")\n' \
+    printf 'addSbtPlugin("org.scalameta" %% "sbt-scalafmt" %% "%s")\n' "${SCALAFMT_VERSION}" \
       >> warmup/project/plugins.sbt
 
 # Mirrors the real galaxio template (templates-gatling scala-sbt) dependency graph.

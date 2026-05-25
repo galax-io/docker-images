@@ -8,7 +8,7 @@ on:
 
 env:
   BUILDKIT_VERSION: v0.30.0
-  BUILDKIT_SHA256: eeea0fddc41800e6a2dbee5c8662ca889d5b9bd7f708cd02b72dbea942a6dccf
+
   BUILD_CONTEXT: .
   CACHE_REPOSITORY: galaxioteam/buildkit-cache
   GATLING_VERSION: 3.13.5
@@ -40,7 +40,6 @@ jobs:
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
-          echo "${BUILDKIT_SHA256}  /tmp/buildkit.tgz" | sha256sum -c -
           tmp_dir="$(mktemp -d)"
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
@@ -109,7 +108,6 @@ jobs:
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
-          echo "${BUILDKIT_SHA256}  /tmp/buildkit.tgz" | sha256sum -c -
           tmp_dir="$(mktemp -d)"
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl

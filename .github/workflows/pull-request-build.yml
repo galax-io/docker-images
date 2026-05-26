@@ -270,3 +270,53 @@ jobs:
           BUILD_ARGS: ${{ steps.debug-meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
         run: ./.github/scripts/buildkit-build.sh
+
+  test-gatling-smoke:
+    name: Smoke-test gatling-${{ matrix.tool }}-runtime (java ${{ matrix.java-version }})
+    runs-on: ubuntu-24.04
+    needs: build-gatling-chain
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: ['17', '21']
+        tool: ['sbt', 'maven', 'gradle']
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Pull runtime image
+        run: docker pull "galaxioteam/gatling-${{ matrix.tool }}-runtime:${{ matrix.java-version }}-${GITHUB_SHA}"
+
+      - name: Run Gatling BasicSimulation smoke test
+        shell: bash
+        env:
+          IMAGE: "galaxioteam/gatling-${{ matrix.tool }}-runtime:${{ matrix.java-version }}-${{ github.sha }}"
+          TOOL: ${{ matrix.tool }}
+          FIXTURE_DIR: ${{ github.workspace }}/tests/fixtures/${{ matrix.tool }}
+        run: |
+          set -euo pipefail
+
+          case "${TOOL}" in
+            sbt)
+              cmd='cd /project && sbt "gatling:testOnly computerdatabase.BasicSimulation"'
+              ;;
+            maven)
+              cmd='cd /project && mvn -q gatling:test -Dgatling.simulationClass=computerdatabase.BasicSimulation'
+              ;;
+            gradle)
+              cmd='cd /project && gradle --no-daemon gatlingRun -Dgatling.simulationClass=computerdatabase.BasicSimulation'
+              ;;
+          esac
+
+          docker run --rm \
+            -v "${FIXTURE_DIR}:/project" \
+            "${IMAGE}" \
+            "${cmd}"

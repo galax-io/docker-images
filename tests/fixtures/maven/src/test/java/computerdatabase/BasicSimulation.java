@@ -8,6 +8,7 @@ import static io.gatling.javaapi.http.HttpDsl.status;
 import io.gatling.javaapi.core.ScenarioBuilder;
 import io.gatling.javaapi.core.Simulation;
 import io.gatling.javaapi.http.HttpProtocolBuilder;
+import java.time.Duration;
 
 public class BasicSimulation extends Simulation {
 
@@ -20,6 +21,6 @@ public class BasicSimulation extends Simulation {
           .exec(http("home").get("/").check(status().is(200)));
 
   {
-    setUp(scn.injectOpen(atOnceUsers(1))).protocols(httpProtocol);
+    setUp(scn.injectOpen(atOnceUsers(1))).protocols(httpProtocol).maxDuration(Duration.ofSeconds(30));
   }
 }

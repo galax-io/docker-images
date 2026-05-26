@@ -6,6 +6,9 @@ ARG GATLING_VERSION=3.13.5
 ARG GATLING_SBT_VERSION=4.18.1
 ARG PICATINNY_VERSION=1.12.3
 ARG GALAXIO_CLI_VERSION=0.6.1
+# SHA256 checksum of galaxio-cli binary release for verification.
+# See: https://github.com/galax-io/galaxio-cli/releases/download/v${GALAXIO_CLI_VERSION}/checksums.txt
+ARG GALAXIO_CLI_CHECKSUM=711075adfa5bd7fc188326ee4200177cfd13d997082ecc27b304e405ae035fea
 
 # Warmup: official sbt image (has JDK + sbt + scala + bash + curl)
 # Uses `galaxio template init` with all plugins (kafka, jdbc, amqp) enabled
@@ -17,6 +20,7 @@ ARG GATLING_VERSION
 ARG GATLING_SBT_VERSION
 ARG PICATINNY_VERSION
 ARG GALAXIO_CLI_VERSION
+ARG GALAXIO_CLI_CHECKSUM
 
 ENV HOME=/home/sbtuser \
     SBT_HOME=/home/sbtuser/.sbt \
@@ -30,8 +34,11 @@ ENV HOME=/home/sbtuser \
 USER root
 RUN curl -fsSL \
       "https://github.com/galax-io/galaxio-cli/releases/download/v${GALAXIO_CLI_VERSION}/galaxio_${GALAXIO_CLI_VERSION}_linux_amd64.tar.gz" \
-      | tar -xz -C /usr/local/bin galaxio && \
-    chmod 0755 /usr/local/bin/galaxio
+      -o /tmp/galaxio.tar.gz && \
+    echo "${GALAXIO_CLI_CHECKSUM}  /tmp/galaxio.tar.gz" | sha256sum -c - && \
+    tar -xz -C /usr/local/bin -f /tmp/galaxio.tar.gz galaxio && \
+    chmod 0755 /usr/local/bin/galaxio && \
+    rm -f /tmp/galaxio.tar.gz
 
 USER sbtuser
 WORKDIR /home/sbtuser

@@ -49,6 +49,32 @@ Build:
 docker build -f gatling-sbt-builder.Dockerfile -t galaxioteam/gatling-sbt-builder:local .
 ```
 
+#### Build arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `GALAXIO_CLI_VERSION` | `0.6.1` | Version of `galaxio-cli` to download. |
+| `GALAXIO_CLI_CHECKSUM` | _(see Dockerfile)_ | SHA256 checksum of the `galaxio-cli` release tarball. Used to verify the download before extraction. |
+
+**`GALAXIO_CLI_CHECKSUM`** — how to find and use it:
+
+1. Open the release page for the target version:
+   `https://github.com/galax-io/galaxio-cli/releases/tag/v<VERSION>`
+2. Download `checksums.txt` from the release assets and locate the line for
+   `galaxio_<VERSION>_linux_amd64.tar.gz`.
+3. Pass the hash at build time:
+
+```bash
+docker build \
+  --build-arg GALAXIO_CLI_VERSION=0.6.1 \
+  --build-arg GALAXIO_CLI_CHECKSUM=711075adfa5bd7fc188326ee4200177cfd13d997082ecc27b304e405ae035fea \
+  -f gatling-sbt-builder.Dockerfile \
+  -t galaxioteam/gatling-sbt-builder:local .
+```
+
+If `GALAXIO_CLI_CHECKSUM` does not match the downloaded file, the build will
+fail at the `sha256sum -c` step before any binary is extracted.
+
 ### `gatling-maven-builder.Dockerfile`
 
 Builder image for Gatling Maven projects:

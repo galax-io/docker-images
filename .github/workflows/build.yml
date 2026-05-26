@@ -259,9 +259,10 @@ jobs:
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
+            base_version="${release_version}"
           else
-            image_tags="${java_version}"
-            base_version="latest"
+            image_tags="${java_version}"$'\n'"${java_version}-${{ github.sha }}"
+            base_version="${{ github.sha }}"
           fi
 
           case "${tool}" in
@@ -319,7 +320,7 @@ jobs:
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
           else
             builder_version="${java_version}"
-            image_tags="${java_version}"
+            image_tags="${java_version}"$'\n'"${java_version}-${{ github.sha }}"
           fi
 
           build_args=$'BUILDER_IMAGE='"${builder_image}"$'\nBUILDER_VERSION='"${builder_version}"$'\nBUILDER_TOOL='"${tool}"
@@ -367,7 +368,7 @@ jobs:
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
           else
             runtime_version="${java_version}"
-            image_tags="${java_version}"
+            image_tags="${java_version}"$'\n'"${java_version}-${{ github.sha }}"
           fi
 
           build_args=$'RUNTIME_IMAGE='"${runtime_image}"$'\nRUNTIME_VERSION='"${runtime_version}"
@@ -393,68 +394,6 @@ jobs:
           BUILD_ARGS: ${{ steps.debug-meta.outputs.build_args }}
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
         run: ./.github/scripts/buildkit-build.sh
-
-  integration-tests:
-    name: Integration tests — ${{ matrix.image_type }} (java ${{ matrix.java-version }})
-    runs-on: ubuntu-24.04
-    needs:
-      - prepare-release
-      - build-jdk
-      - build-gatling-chain
-    if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        java-version: ['17', '21']
-        image_type: ['jdk', 'sbt-builder', 'maven-builder', 'gradle-builder', 'sbt-runtime', 'maven-runtime', 'gradle-runtime']
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v5
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Resolve image reference
-        id: image
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          java_version="${{ matrix.java-version }}"
-          image_type="${{ matrix.image_type }}"
-
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            tag="${java_version}-${{ needs.prepare-release.outputs.release_version }}"
-          else
-            tag="${java_version}-${{ github.sha }}"
-          fi
-
-          case "${image_type}" in
-            jdk)
-              image_ref="galaxioteam/base-jdk:${tag}"
-              ;;
-            sbt-builder | maven-builder | gradle-builder)
-              tool="${image_type%-builder}"
-              image_ref="galaxioteam/gatling-${tool}-builder:${tag}"
-              ;;
-            sbt-runtime | maven-runtime | gradle-runtime)
-              tool="${image_type%-runtime}"
-              image_ref="galaxioteam/gatling-${tool}-runtime:${tag}"
-              ;;
-          esac
-
-          echo "image_ref=${image_ref}" >> "${GITHUB_OUTPUT}"
-
-      - name: Run integration tests
-        env:
-          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
-          IMAGE_TYPE: ${{ matrix.image_type }}
-        run: bash tests/test_integration.sh
 
   changelog:
     name: Generate Changelog

@@ -55,7 +55,7 @@ printf '=== Integration test: %s  (type=%s) ===\n\n' "${IMAGE_REF}" "${IMAGE_TYP
 # Test 1: pull image
 # ---------------------------------------------------------------------------
 printf '--- Test: docker pull ---\n'
-check "docker pull ${IMAGE_REF}" docker pull "${IMAGE_REF}"
+check "docker pull ${IMAGE_REF}" timeout 120 docker pull "${IMAGE_REF}"
 
 # ---------------------------------------------------------------------------
 # Test 2: non-root UID = 65532
@@ -65,9 +65,9 @@ check "docker pull ${IMAGE_REF}" docker pull "${IMAGE_REF}"
 printf '--- Test: non-root UID ---\n'
 case "${IMAGE_TYPE}" in
   *-runtime)
-    uid_output="$(docker run --rm "${IMAGE_REF}" "id -u" 2>&1 || echo "error")" ;;
+    uid_output="$(timeout 60 docker run --rm "${IMAGE_REF}" "id -u" 2>&1 || echo "error")" ;;
   *)
-    uid_output="$(docker run --rm "${IMAGE_REF}" id -u 2>&1 || echo "error")" ;;
+    uid_output="$(timeout 60 docker run --rm "${IMAGE_REF}" id -u 2>&1 || echo "error")" ;;
 esac
 uid_output="$(printf '%s' "${uid_output}" | tr -d '[:space:]')"
 if [[ "${uid_output}" == "65532" ]]; then
@@ -82,9 +82,9 @@ fi
 printf '--- Test: entrypoint ---\n'
 case "${IMAGE_TYPE}" in
   *-runtime)
-    check "entrypoint echo ok" docker run --rm "${IMAGE_REF}" "echo ok" ;;
+    check "entrypoint echo ok" timeout 60 docker run --rm "${IMAGE_REF}" "echo ok" ;;
   *)
-    check "entrypoint echo ok" docker run --rm "${IMAGE_REF}" echo ok ;;
+    check "entrypoint echo ok" timeout 60 docker run --rm "${IMAGE_REF}" echo ok ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -93,13 +93,13 @@ esac
 printf '--- Test: build tool ---\n'
 case "${IMAGE_TYPE}" in
   *sbt*)
-    check "sbt --version" docker run --rm "${IMAGE_REF}" sbt --version ;;
+    check "sbt --version" timeout 60 docker run --rm "${IMAGE_REF}" sbt --version ;;
   *maven*)
-    check "mvn --version" docker run --rm "${IMAGE_REF}" mvn --version ;;
+    check "mvn --version" timeout 60 docker run --rm "${IMAGE_REF}" mvn --version ;;
   *gradle*)
-    check "gradle --version" docker run --rm "${IMAGE_REF}" gradle --version ;;
+    check "gradle --version" timeout 60 docker run --rm "${IMAGE_REF}" gradle --version ;;
   *)
-    check "java -version" docker run --rm "${IMAGE_REF}" java -version ;;
+    check "java -version" timeout 60 docker run --rm "${IMAGE_REF}" java -version ;;
 esac
 
 # ---------------------------------------------------------------------------

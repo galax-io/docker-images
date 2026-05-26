@@ -31,6 +31,9 @@ RUN rm -rf \
 FROM debian:bookworm-slim AS downloader
 
 ARG GALAXIO_CLI_VERSION
+# SHA256 checksum of the galaxio-cli release tar.gz. Verified before installation.
+# Find current checksums at: https://github.com/galax-io/galaxio-cli/releases/download/v{VERSION}/checksums.txt
+ARG GALAXIO_CLI_CHECKSUM=711075adfa5bd7fc188326ee4200177cfd13d997082ecc27b304e405ae035fea
 
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
@@ -40,7 +43,10 @@ RUN apt-get update && \
 
 RUN curl -fsSL \
       "https://github.com/galax-io/galaxio-cli/releases/download/v${GALAXIO_CLI_VERSION}/galaxio_${GALAXIO_CLI_VERSION}_linux_amd64.tar.gz" \
-      | tar -xz -C /usr/local/bin galaxio && \
+      -o /tmp/galaxio.tar.gz && \
+    echo "${GALAXIO_CLI_CHECKSUM}  /tmp/galaxio.tar.gz" | sha256sum -c - && \
+    tar -xz -C /usr/local/bin -f /tmp/galaxio.tar.gz galaxio && \
+    rm /tmp/galaxio.tar.gz && \
     chmod 0555 /usr/local/bin/galaxio && \
     /usr/local/bin/galaxio version
 

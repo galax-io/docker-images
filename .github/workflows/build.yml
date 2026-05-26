@@ -12,6 +12,9 @@ on:
 
 env:
   BUILDKIT_VERSION: v0.30.0
+  # SHA-256 of buildkit-v<VERSION>.linux-amd64.tar.gz — update when bumping BUILDKIT_VERSION.
+  # Leave empty to skip verification (not recommended for production).
+  BUILDKIT_CHECKSUM: ""
 
   BUILD_CONTEXT: .
   CACHE_REPOSITORY: galaxioteam/buildkit-cache
@@ -153,7 +156,10 @@ jobs:
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
           sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
-          rm -f /tmp/buildkit.tgz
+          if [ -n "${BUILDKIT_CHECKSUM:-}" ]; then
+            echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
+          fi
+          rm -rf "${tmp_dir}" /tmp/buildkit.tgz
           buildctl --version
 
       - name: Log in to Docker Hub
@@ -232,7 +238,10 @@ jobs:
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
           sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
-          rm -f /tmp/buildkit.tgz
+          if [ -n "${BUILDKIT_CHECKSUM:-}" ]; then
+            echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
+          fi
+          rm -rf "${tmp_dir}" /tmp/buildkit.tgz
           buildctl --version
 
       - name: Log in to Docker Hub
@@ -422,6 +431,7 @@ jobs:
       - prepare-release
       - build-jdk
       - build-gatling-chain
+      - test-gatling-smoke
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
@@ -469,6 +479,7 @@ jobs:
       - prepare-release
       - build-jdk
       - build-gatling-chain
+      - test-gatling-smoke
       - changelog
     permissions:
       contents: write

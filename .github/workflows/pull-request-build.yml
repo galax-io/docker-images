@@ -8,6 +8,9 @@ on:
 
 env:
   BUILDKIT_VERSION: v0.30.0
+  # SHA-256 of buildkit-v<VERSION>.linux-amd64.tar.gz — update when bumping BUILDKIT_VERSION.
+  # Leave empty to skip verification (not recommended for production).
+  BUILDKIT_CHECKSUM: ""
 
   BUILD_CONTEXT: .
   CACHE_REPOSITORY: galaxioteam/buildkit-cache
@@ -37,13 +40,18 @@ jobs:
 
       - name: Set up BuildKit
         run: |
+          set -euo pipefail
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
+          if [ -n "${BUILDKIT_CHECKSUM:-}" ]; then
+            echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
+          fi
           tmp_dir="$(mktemp -d)"
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
           sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
+          rm -rf "${tmp_dir}" /tmp/buildkit.tgz
           buildctl --version
 
       - name: Log in to Docker Hub
@@ -105,13 +113,18 @@ jobs:
 
       - name: Set up BuildKit
         run: |
+          set -euo pipefail
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
+          if [ -n "${BUILDKIT_CHECKSUM:-}" ]; then
+            echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
+          fi
           tmp_dir="$(mktemp -d)"
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
           sudo install -m 0755 "${tmp_dir}/bin/buildkitd" /usr/local/bin/buildkitd
+          rm -rf "${tmp_dir}" /tmp/buildkit.tgz
           buildctl --version
 
       - name: Log in to Docker Hub

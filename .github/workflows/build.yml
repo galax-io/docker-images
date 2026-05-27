@@ -355,6 +355,13 @@ jobs:
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
         run: ./.github/scripts/buildkit-build.sh
 
+      - name: Runtime smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.runtime-meta.outputs.image_name }}:$(printf '%s' '${{ steps.runtime-meta.outputs.image_tags }}' | head -n1)"
+          tests/test_runtime_smoke.sh "$IMAGE"
+
       - name: Prepare debug metadata
         id: debug-meta
         shell: bash

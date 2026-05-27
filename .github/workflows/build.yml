@@ -179,11 +179,15 @@ jobs:
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             image_tags="${{ matrix.java-version }}-${release_version}"$'\n'"${{ matrix.java-version }}-${release_tag}"
+            base_version="${release_version}"
           else
-            image_tags="${{ matrix.java-version }}"
+            # Push both the mutable :<java> tag and an immutable :<java>-<sha> tag so that
+            # downstream jobs referencing base-jdk:<java>-<sha> can resolve the image.
+            image_tags="${{ matrix.java-version }}"$'\n'"${{ matrix.java-version }}-${{ github.sha }}"
+            base_version="${{ github.sha }}"
           fi
 
-          build_args=$'BASE_VERSION=latest\nJAVA_VERSION=${{ matrix.java-version }}'
+          build_args=$'BASE_VERSION='"${base_version}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
 
           {
             echo "image_name=${image_name}"
@@ -263,9 +267,10 @@ jobs:
 
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
+            base_version="${release_version}"
           else
-            image_tags="${java_version}"
-            base_version="latest"
+            image_tags="${java_version}"$'\n'"${java_version}-${{ github.sha }}"
+            base_version="${{ github.sha }}"
           fi
 
           case "${tool}" in
@@ -323,7 +328,7 @@ jobs:
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
           else
             builder_version="${java_version}"
-            image_tags="${java_version}"
+            image_tags="${java_version}"$'\n'"${java_version}-${{ github.sha }}"
           fi
 
           build_args=$'BUILDER_IMAGE='"${builder_image}"$'\nBUILDER_VERSION='"${builder_version}"$'\nBUILDER_TOOL='"${tool}"
@@ -371,7 +376,7 @@ jobs:
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
           else
             runtime_version="${java_version}"
-            image_tags="${java_version}"
+            image_tags="${java_version}"$'\n'"${java_version}-${{ github.sha }}"
           fi
 
           build_args=$'RUNTIME_IMAGE='"${runtime_image}"$'\nRUNTIME_VERSION='"${runtime_version}"
@@ -426,6 +431,7 @@ jobs:
       - prepare-release
       - build-jdk
       - build-gatling-chain
+      - integration-tests
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
@@ -473,6 +479,7 @@ jobs:
       - prepare-release
       - build-jdk
       - build-gatling-chain
+      - integration-tests
       - changelog
     permissions:
       contents: write

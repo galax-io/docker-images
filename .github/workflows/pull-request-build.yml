@@ -9,8 +9,7 @@ on:
 env:
   BUILDKIT_VERSION: v0.30.0
   # SHA-256 of buildkit-v<VERSION>.linux-amd64.tar.gz — update when bumping BUILDKIT_VERSION.
-  # Leave empty to skip verification (not recommended for production).
-  BUILDKIT_CHECKSUM: ""
+  BUILDKIT_CHECKSUM: "2da148c50540409988c837e62b72176e4a9ad7855548a2dd6ea1cd0c0d2d360d"
 
   BUILD_CONTEXT: .
   CACHE_REPOSITORY: galaxioteam/buildkit-cache
@@ -44,9 +43,7 @@ jobs:
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
-          if [ -n "${BUILDKIT_CHECKSUM:-}" ]; then
-            echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
-          fi
+          echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
           tmp_dir="$(mktemp -d)"
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl
@@ -117,9 +114,7 @@ jobs:
           curl -fsSL \
             "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
             -o /tmp/buildkit.tgz
-          if [ -n "${BUILDKIT_CHECKSUM:-}" ]; then
-            echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
-          fi
+          echo "${BUILDKIT_CHECKSUM}  /tmp/buildkit.tgz" | sha256sum -c -
           tmp_dir="$(mktemp -d)"
           tar -C "${tmp_dir}" -xzf /tmp/buildkit.tgz
           sudo install -m 0755 "${tmp_dir}/bin/buildctl" /usr/local/bin/buildctl

@@ -181,8 +181,9 @@ jobs:
             image_tags="${{ matrix.java-version }}-${release_version}"$'\n'"${{ matrix.java-version }}-${release_tag}"
             base_version="${release_version}"
           else
-            # Push both the mutable :<java> tag and an immutable :<java>-<sha> tag so that
-            # downstream jobs referencing base-jdk:<java>-<sha> can resolve the image.
+            # Publish both the mutable :<java> tag and an immutable :<java>-<sha> tag.
+            # Downstream build-gatling-chain jobs reference the SHA-tagged image to prevent
+            # base-image drift when multiple workflow runs are in flight simultaneously.
             image_tags="${{ matrix.java-version }}"$'\n'"${{ matrix.java-version }}-${{ github.sha }}"
             base_version="${{ github.sha }}"
           fi
@@ -269,6 +270,7 @@ jobs:
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
             base_version="${release_version}"
           else
+            # Reference the SHA-tagged base-jdk image published by build-jdk in this same run.
             image_tags="${java_version}"$'\n'"${java_version}-${{ github.sha }}"
             base_version="${{ github.sha }}"
           fi

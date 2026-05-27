@@ -68,8 +68,8 @@ jobs:
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}-pr"
           image_tags="${{ matrix.java-version }}-${sha_tag}"
-          # BASE_VERSION is defined but not consumed by java.Dockerfile (base-jdk builds directly from
-          # eclipse-temurin, not from another base-jdk image). Passed here for Dockerfile ARG parity only.
+          # BASE_VERSION is not consumed by java.Dockerfile (it builds from eclipse-temurin directly),
+          # but is set to the SHA for ARG parity with downstream builder Dockerfiles.
           build_args=$'BASE_VERSION='"${sha_tag}"$'\nJAVA_VERSION=${{ matrix.java-version }}'
 
           {

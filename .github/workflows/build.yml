@@ -476,10 +476,12 @@ jobs:
               ;;
           esac
 
+          tmp_target="$(mktemp -d)"
           docker run --rm \
             -v "${FIXTURE_DIR}:/project" \
+            -v "${tmp_target}:/project/target" \
             "${IMAGE}" \
-            "${cmd}"
+            bash -c "${cmd}"
 
   changelog:
     name: Generate Changelog

@@ -447,7 +447,8 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             tag="${java_version}-${release_version}"
           else
-            tag="${java_version}"
+            # Use SHA-tagged image pushed by build-gatling-chain in this same run to prevent drift.
+            tag="${java_version}-${{ github.sha }}"
           fi
 
           echo "ref=galaxioteam/gatling-${tool}-runtime:${tag}" >> "${GITHUB_OUTPUT}"
@@ -466,7 +467,7 @@ jobs:
 
           case "${TOOL}" in
             sbt)
-              cmd='cd /project && sbt "gatling:testOnly computerdatabase.BasicSimulation"'
+              cmd='cd /project && sbt "Gatling / testOnly computerdatabase.BasicSimulation"'
               ;;
             maven)
               cmd='cd /project && mvn -q gatling:test -Dgatling.simulationClass=computerdatabase.BasicSimulation'
@@ -477,6 +478,7 @@ jobs:
           esac
 
           tmp_target="$(mktemp -d)"
+          trap 'rm -rf "${tmp_target}"' EXIT
           docker run --rm \
             -v "${FIXTURE_DIR}:/project" \
             -v "${tmp_target}:/project/target" \

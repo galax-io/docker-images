@@ -293,7 +293,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Pull runtime image
-        run: docker pull "galaxioteam/gatling-${{ matrix.tool }}-runtime:${{ matrix.java-version }}-${GITHUB_SHA}"
+        run: docker pull "galaxioteam/gatling-${{ matrix.tool }}-runtime:${{ matrix.java-version }}-${{ github.sha }}"
 
       - name: Run Gatling BasicSimulation smoke test
         shell: bash
@@ -306,7 +306,7 @@ jobs:
 
           case "${TOOL}" in
             sbt)
-              cmd='cd /project && sbt "gatling:testOnly computerdatabase.BasicSimulation"'
+              cmd='cd /project && sbt "Gatling / testOnly computerdatabase.BasicSimulation"'
               ;;
             maven)
               cmd='cd /project && mvn -q gatling:test -Dgatling.simulationClass=computerdatabase.BasicSimulation'
@@ -317,6 +317,7 @@ jobs:
           esac
 
           tmp_target="$(mktemp -d)"
+          trap 'rm -rf "${tmp_target}"' EXIT
           docker run --rm \
             -v "${FIXTURE_DIR}:/project" \
             -v "${tmp_target}:/project/target" \

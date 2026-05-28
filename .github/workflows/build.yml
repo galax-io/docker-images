@@ -410,7 +410,7 @@ jobs:
           CONTEXT_DIR: ${{ env.BUILD_CONTEXT }}
         run: ./.github/scripts/buildkit-build.sh
 
-  test-gatling-smoke:
+  integration-tests:
     name: Smoke-test gatling-${{ matrix.tool }}-runtime (java ${{ matrix.java-version }})
     runs-on: ubuntu-24.04
     needs:

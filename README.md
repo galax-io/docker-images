@@ -176,3 +176,10 @@ For production and CI usage, prefer the following split:
 - fixed `SBT_OPTS` handling in the sbt builder
 
 Docker Hub: [galaxioteam](https://hub.docker.com/u/galaxioteam)
+
+
+<!-- IMAGE-SIZES-START -->
+
+| Image | Tag | Size |\n|-------|-----|------|\n| `galaxio-cli` | `0.3.3` | N/A |\n| `base-jdk` | `17-0.3.3` | N/A |\n| `base-jdk` | `21-0.3.3` | N/A |\n| `gatling-sbt-builder` | `17-0.3.3` | N/A |\n| `gatling-sbt-builder` | `21-0.3.3` | N/A |\n| `gatling-maven-builder` | `17-0.3.3` | N/A |\n| `gatling-maven-builder` | `21-0.3.3` | N/A |\n| `gatling-gradle-builder` | `17-0.3.3` | N/A |\n| `gatling-gradle-builder` | `21-0.3.3` | N/A |\n| `gatling-sbt-runtime` | `17-0.3.3` | N/A |\n| `gatling-sbt-runtime` | `21-0.3.3` | N/A |\n| `gatling-maven-runtime` | `17-0.3.3` | N/A |\n| `gatling-maven-runtime` | `21-0.3.3` | N/A |\n| `gatling-gradle-runtime` | `17-0.3.3` | N/A |\n| `gatling-gradle-runtime` | `21-0.3.3` | N/A |\n| `gatling-sbt-debug` | `17-0.3.3` | N/A |\n| `gatling-sbt-debug` | `21-0.3.3` | N/A |\n| `gatling-maven-debug` | `17-0.3.3` | N/A |\n| `gatling-maven-debug` | `21-0.3.3` | N/A |\n| `gatling-gradle-debug` | `17-0.3.3` | N/A |\n| `gatling-gradle-debug` | `21-0.3.3` | N/A |\n
+
+<!-- IMAGE-SIZES-END -->

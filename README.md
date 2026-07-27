@@ -182,27 +182,27 @@ Docker Hub: [galaxioteam](https://hub.docker.com/u/galaxioteam)
 
 | Image | Tag | Size |
 |-------|-----|------|
-| `galaxio-cli` | `0.3.11` | N/A |
-| `base-jdk` | `17-0.3.11` | N/A |
-| `base-jdk` | `21-0.3.11` | N/A |
-| `gatling-sbt-builder` | `17-0.3.11` | N/A |
-| `gatling-sbt-builder` | `21-0.3.11` | N/A |
-| `gatling-maven-builder` | `17-0.3.11` | N/A |
-| `gatling-maven-builder` | `21-0.3.11` | N/A |
-| `gatling-gradle-builder` | `17-0.3.11` | N/A |
-| `gatling-gradle-builder` | `21-0.3.11` | N/A |
-| `gatling-sbt-runtime` | `17-0.3.11` | N/A |
-| `gatling-sbt-runtime` | `21-0.3.11` | N/A |
-| `gatling-maven-runtime` | `17-0.3.11` | N/A |
-| `gatling-maven-runtime` | `21-0.3.11` | N/A |
-| `gatling-gradle-runtime` | `17-0.3.11` | N/A |
-| `gatling-gradle-runtime` | `21-0.3.11` | N/A |
-| `gatling-sbt-debug` | `17-0.3.11` | N/A |
-| `gatling-sbt-debug` | `21-0.3.11` | N/A |
-| `gatling-maven-debug` | `17-0.3.11` | N/A |
-| `gatling-maven-debug` | `21-0.3.11` | N/A |
-| `gatling-gradle-debug` | `17-0.3.11` | N/A |
-| `gatling-gradle-debug` | `21-0.3.11` | N/A |
+| `galaxio-cli` | `0.3.12` | N/A |
+| `base-jdk` | `17-0.3.12` | N/A |
+| `base-jdk` | `21-0.3.12` | N/A |
+| `gatling-sbt-builder` | `17-0.3.12` | N/A |
+| `gatling-sbt-builder` | `21-0.3.12` | N/A |
+| `gatling-maven-builder` | `17-0.3.12` | N/A |
+| `gatling-maven-builder` | `21-0.3.12` | N/A |
+| `gatling-gradle-builder` | `17-0.3.12` | N/A |
+| `gatling-gradle-builder` | `21-0.3.12` | N/A |
+| `gatling-sbt-runtime` | `17-0.3.12` | N/A |
+| `gatling-sbt-runtime` | `21-0.3.12` | N/A |
+| `gatling-maven-runtime` | `17-0.3.12` | N/A |
+| `gatling-maven-runtime` | `21-0.3.12` | N/A |
+| `gatling-gradle-runtime` | `17-0.3.12` | N/A |
+| `gatling-gradle-runtime` | `21-0.3.12` | N/A |
+| `gatling-sbt-debug` | `17-0.3.12` | N/A |
+| `gatling-sbt-debug` | `21-0.3.12` | N/A |
+| `gatling-maven-debug` | `17-0.3.12` | N/A |
+| `gatling-maven-debug` | `21-0.3.12` | N/A |
+| `gatling-gradle-debug` | `17-0.3.12` | N/A |
+| `gatling-gradle-debug` | `21-0.3.12` | N/A |
 
 
 <!-- IMAGE-SIZES-END -->

@@ -44,6 +44,19 @@ jobs:
 
       - name: Compute next version and create git tag
         id: bump
+        # Only cut a release on an explicit trigger (workflow_dispatch, the weekly
+        # schedule) or when a human already pushed a real `v*` tag. A plain push to
+        # main must NOT auto-tag: the tag this step pushes uses GITHUB_TOKEN, and
+        # GitHub's loop-prevention never starts a new workflow run for a ref pushed
+        # with GITHUB_TOKEN — so a tag created on every push was never actually
+        # triggering the changelog/image/GitHub-Release steps below. Those now key
+        # off this job's `release_tag` output instead of `github.ref`, so a release
+        # triggered here completes in this same run without depending on a second,
+        # never-happening run. See issue #128.
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          github.event_name == 'schedule' ||
+          startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -127,7 +140,12 @@ jobs:
           if ! git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
             git tag -a "${NEXT_TAG}" -m "Release ${NEXT_TAG}"
             git push origin "${NEXT_TAG}"
-            # Tag push itself triggers build.yml via on.push.tags — no dispatch needed
+            # This push uses GITHUB_TOKEN, so it will NOT trigger a new workflow run
+            # (GitHub Actions loop-prevention). The jobs below that finish the release
+            # (build-jdk/build-gatling-chain version tags, changelog, github-release,
+            # update-readme) key off this job's `release_tag` output rather than
+            # `github.ref`, so they complete within this same run instead of waiting
+            # for a second run that would never start.
           fi
 
   build-jdk:
@@ -177,7 +195,12 @@ jobs:
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}"
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          # A release happened in this run (workflow_dispatch/schedule tag, or a
+          # human-pushed v* tag) whenever prepare-release produced a release_tag —
+          # checking that instead of GITHUB_REF because an auto-created release tag
+          # is tagged and pushed from *this* run but GITHUB_REF stays refs/heads/main
+          # throughout it (see prepare-release's "Compute next version" step).
+          if [[ -n "${release_tag}" ]]; then
             image_tags="${{ matrix.java-version }}-${release_version}"$'\n'"${{ matrix.java-version }}-${release_tag}"
             base_version="${release_version}"
           else
@@ -265,7 +288,9 @@ jobs:
           dockerfile_path="gatling-${tool}-builder.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-builder-${java_version}"
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          # See build-jdk's "Prepare build metadata" step for why this checks
+          # release_tag rather than GITHUB_REF.
+          if [[ -n "${release_tag}" ]]; then
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
             base_version="${release_version}"
           else
@@ -323,7 +348,9 @@ jobs:
           dockerfile_path="gatling-runtime.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-runtime-${java_version}"
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          # See build-jdk's "Prepare build metadata" step for why this checks
+          # release_tag rather than GITHUB_REF.
+          if [[ -n "${release_tag}" ]]; then
             builder_version="${java_version}-${release_version}"
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
           else
@@ -378,7 +405,9 @@ jobs:
           dockerfile_path="gatling-debug.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:gatling-${tool}-debug-${java_version}"
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          # See build-jdk's "Prepare build metadata" step for why this checks
+          # release_tag rather than GITHUB_REF.
+          if [[ -n "${release_tag}" ]]; then
             runtime_version="${java_version}-${release_version}"
             image_tags="${java_version}-${release_version}"$'\n'"${java_version}-${release_tag}"
           else
@@ -443,8 +472,11 @@ jobs:
           tool="${{ matrix.tool }}"
           java_version="${{ matrix.java-version }}"
           release_version="${{ needs.prepare-release.outputs.release_version }}"
+          release_tag="${{ needs.prepare-release.outputs.release_tag }}"
 
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          # See build-jdk's "Prepare build metadata" step for why this checks
+          # release_tag rather than GITHUB_REF.
+          if [[ -n "${release_tag}" ]]; then
             tag="${java_version}-${release_version}"
           else
             # Use SHA-tagged image pushed by build-gatling-chain in this same run to prevent drift.
@@ -489,7 +521,9 @@ jobs:
     name: Generate Changelog
     runs-on: ubuntu-24.04
     needs: prepare-release
-    if: startsWith(github.ref, 'refs/tags/')
+    # Runs whenever prepare-release actually cut a release this run — see that
+    # job's "Compute next version" step for why this can't be a github.ref check.
+    if: needs.prepare-release.outputs.release_tag != ''
     permissions:
       contents: read
     outputs:
@@ -514,7 +548,10 @@ jobs:
       - build-jdk
       - build-gatling-chain
       - integration-tests
-    if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/')
+    # Only run once a release actually happened this run — otherwise RELEASE_VERSION
+    # is empty and every image lookup below would target tags that were never
+    # pushed (see issue #128). See prepare-release's "Compute next version" step.
+    if: needs.prepare-release.outputs.release_tag != ''
     permissions:
       contents: write
     steps:
@@ -556,7 +593,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-24.04
-    if: startsWith(github.ref, 'refs/tags/')
+    if: needs.prepare-release.outputs.release_tag != ''
     needs:
       - prepare-release
       - build-jdk

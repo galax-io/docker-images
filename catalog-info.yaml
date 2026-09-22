@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: docker-images
+  description: Production-oriented container base images for the Galaxio team (distroless Java, Gatling builders/runtime, debug images)
+  annotations:
+    github.com/project-slug: galax-io/docker-images
+spec:
+  type: library
+  lifecycle: production
+  owner: galaxio

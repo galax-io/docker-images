@@ -5,6 +5,13 @@ on:
   pull_request:
     branches:
       - '**'
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   BUILDKIT_VERSION: v0.30.0
@@ -27,6 +34,7 @@ jobs:
   build-jdk:
     name: Build base-jdk ${{ matrix.java-version }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     permissions:
       contents: read
     strategy:
@@ -97,6 +105,7 @@ jobs:
   build-gatling-chain:
     name: Build gatling-${{ matrix.tool }}-chain (java ${{ matrix.java-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     needs: build-jdk
     permissions:
       contents: read
@@ -274,6 +283,7 @@ jobs:
   integration-tests:
     name: Smoke-test gatling-${{ matrix.tool }}-runtime (java ${{ matrix.java-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     needs: build-gatling-chain
     permissions:
       contents: read

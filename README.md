@@ -4,23 +4,14 @@ Production-oriented container images for the Galaxio team.
 
 ## Images
 
-### `Dockerfile`
-
-Minimal distroless base image:
-
-- runs as `nonroot`
-- no shell, package manager, or debugging tools
-- intended as a safe parent for production images
-
-Build:
-
-```bash
-docker build -f Dockerfile -t galaxioteam/base:local .
-```
+This repo does not build a standalone minimal/distroless base image. The root
+of the image hierarchy, `galaxioteam/galaxio`, is built externally in
+[galax-io/galaxio-cli](https://github.com/galax-io/galaxio-cli) and always
+tracks `latest`; the Dockerfiles below build on top of it.
 
 ### `java.Dockerfile`
 
-Hardened Java 21 JDK image on top of the distroless base:
+Hardened Java 21 JDK image:
 
 - full JDK copied from Eclipse Temurin
 - non-root by default
@@ -180,29 +171,13 @@ Docker Hub: [galaxioteam](https://hub.docker.com/u/galaxioteam)
 
 <!-- IMAGE-SIZES-START -->
 
-| Image | Tag | Size |
-|-------|-----|------|
-| `galaxio-cli` | `0.3.21` | N/A |
-| `base-jdk` | `17-0.3.21` | N/A |
-| `base-jdk` | `21-0.3.21` | N/A |
-| `gatling-sbt-builder` | `17-0.3.21` | N/A |
-| `gatling-sbt-builder` | `21-0.3.21` | N/A |
-| `gatling-maven-builder` | `17-0.3.21` | N/A |
-| `gatling-maven-builder` | `21-0.3.21` | N/A |
-| `gatling-gradle-builder` | `17-0.3.21` | N/A |
-| `gatling-gradle-builder` | `21-0.3.21` | N/A |
-| `gatling-sbt-runtime` | `17-0.3.21` | N/A |
-| `gatling-sbt-runtime` | `21-0.3.21` | N/A |
-| `gatling-maven-runtime` | `17-0.3.21` | N/A |
-| `gatling-maven-runtime` | `21-0.3.21` | N/A |
-| `gatling-gradle-runtime` | `17-0.3.21` | N/A |
-| `gatling-gradle-runtime` | `21-0.3.21` | N/A |
-| `gatling-sbt-debug` | `17-0.3.21` | N/A |
-| `gatling-sbt-debug` | `21-0.3.21` | N/A |
-| `gatling-maven-debug` | `17-0.3.21` | N/A |
-| `gatling-maven-debug` | `21-0.3.21` | N/A |
-| `gatling-gradle-debug` | `17-0.3.21` | N/A |
-| `gatling-gradle-debug` | `21-0.3.21` | N/A |
-
+_Image sizes are not currently published here. The versioned image tags this
+table would query were never actually pushed to Docker Hub, a symptom of the
+release-tagging bug fixed in [#129](https://github.com/galax-io/docker-images/pull/129)
+— see [#132](https://github.com/galax-io/docker-images/issues/132) for
+details. This section is regenerated automatically by
+`.github/scripts/update-readme.sh` on every successful release, so it will
+repopulate with real values the next time one completes. Until then, see
+[Docker Hub](https://hub.docker.com/u/galaxioteam) for current image tags._
 
 <!-- IMAGE-SIZES-END -->

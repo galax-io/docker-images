@@ -55,4 +55,3 @@ prepare-release → build-jdk [17, 21] → build-chains [sbt, maven, gradle] × 
 ```
 
 Triggers: push to main, `v*` tags, weekly schedule (Monday 06:00 UTC), manual dispatch.
-`update-readme` job auto-updates image sizes in README after publish.

@@ -175,9 +175,8 @@ _Image sizes are not currently published here. The versioned image tags this
 table would query were never actually pushed to Docker Hub, a symptom of the
 release-tagging bug fixed in [#129](https://github.com/galax-io/docker-images/pull/129)
 — see [#132](https://github.com/galax-io/docker-images/issues/132) for
-details. This section is regenerated automatically by
-`.github/scripts/update-readme.sh` on every successful release, so it will
-repopulate with real values the next time one completes. Until then, see
-[Docker Hub](https://hub.docker.com/u/galaxioteam) for current image tags._
+details. Sizes are no longer generated into this README; see
+[Docker Hub](https://hub.docker.com/u/galaxioteam) for current image tags and
+their sizes._
 
 <!-- IMAGE-SIZES-END -->

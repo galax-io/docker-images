@@ -5,7 +5,14 @@ metadata:
   description: Production-oriented container base images for the Galaxio team (distroless Java, Gatling builders/runtime, debug images)
   annotations:
     github.com/project-slug: galax-io/docker-images
+    galaxio.io/uses.galaxio-cli: "api: builder image installs the CLI binary; galaxioteam/galaxio is the root image"
+    galaxio.io/uses.galaxio-template-registry: "template: builder image renders gatling/scala-sbt from the registry to warm caches"
+    galaxio.io/uses.spec-kit-galaxio-bootstrap: "process: created from the template, takes process updates via copier update"
 spec:
   type: library
   lifecycle: production
   owner: galaxio
+  dependsOn:
+    - component:default/galaxio-cli
+    - component:default/galaxio-template-registry
+    - component:default/spec-kit-galaxio-bootstrap

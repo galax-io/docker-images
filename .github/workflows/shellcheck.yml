@@ -23,3 +23,5 @@ jobs:
         with:
           scandir: .
           severity: warning
+          # The Spec Kit kit is generated in spec-kit-galaxio-bootstrap and shipped as it is.
+          ignore_paths: .specify

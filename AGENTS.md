@@ -2,6 +2,8 @@
 
 Docker image CI/CD repo for Galaxio Gatling load testing. Published to Docker Hub `galaxioteam/`.
 
+**Constitution:** the principles of this repository are in `.specify/memory/constitution.md`; where they conflict with this file, the constitution wins.
+
 Use Docker skills: `docker-syntax-dockerfile`, `docker-syntax-buildkit`, `docker-syntax-multistage`, `docker-impl-build-optimization`, `docker-impl-cicd`, `docker-errors-build`.
 
 ## Image Hierarchy

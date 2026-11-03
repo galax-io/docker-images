@@ -56,7 +56,7 @@ prepare-release → build-jdk [17, 21] → build-chains [sbt, maven, gradle] × 
                                          each chain: builder → runtime → debug
 ```
 
-Triggers: push to main, `v*` tags, weekly schedule (Monday 06:00 UTC), manual dispatch.
+Triggers: push to main, `v*` tags, manual dispatch.
 
 ## Feature milestones (ALWAYS)
 

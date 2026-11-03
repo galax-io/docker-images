@@ -6,8 +6,6 @@ on:
       - main
     tags:
       - 'v*'
-  schedule:
-    - cron: '0 6 * * 1'
   workflow_dispatch:
 
 env:
@@ -45,8 +43,8 @@ jobs:
 
       - name: Compute next version and create git tag
         id: bump
-        # Only cut a release on an explicit trigger (workflow_dispatch, the weekly
-        # schedule) or when a human already pushed a real `v*` tag. A plain push to
+        # Only cut a release on an explicit trigger (workflow_dispatch)
+        # or when a human already pushed a real `v*` tag. A plain push to
         # main must NOT auto-tag: the tag this step pushes uses GITHUB_TOKEN, and
         # GitHub's loop-prevention never starts a new workflow run for a ref pushed
         # with GITHUB_TOKEN — so a tag created on every push was never actually
@@ -56,7 +54,6 @@ jobs:
         # never-happening run. See issue #128.
         if: >-
           github.event_name == 'workflow_dispatch' ||
-          github.event_name == 'schedule' ||
           startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -197,7 +194,7 @@ jobs:
           dockerfile_path="java.Dockerfile"
           cache_ref="${CACHE_REPOSITORY}:base-jdk-${{ matrix.java-version }}"
 
-          # A release happened in this run (workflow_dispatch/schedule tag, or a
+          # A release happened in this run (workflow_dispatch tag, or a
           # human-pushed v* tag) whenever prepare-release produced a release_tag —
           # checking that instead of GITHUB_REF because an auto-created release tag
           # is tagged and pushed from *this* run but GITHUB_REF stays refs/heads/main

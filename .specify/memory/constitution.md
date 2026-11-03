@@ -116,7 +116,7 @@ Rationale: containers built from these images must not re-download dependencies 
   the CI. Until it is removed, a pull request build MUST NOT push or overwrite a version tag or the
   moving `<java>` tag, and MUST NOT add a new kind of tag or cache ref.
 - Version tags (`<java>-<X.Y.Z>`, `<java>-v<X.Y.Z>`) are produced only by the `prepare-release` job
-  of `build.yml` (manual dispatch, the weekly schedule, or a pushed `v*` tag). A plain push to `main`
+  of `build.yml` (manual dispatch or a pushed `v*` tag). A plain push to `main`
   MUST NOT cut a release.
 - The commit subject decides the bump (`feat` -> minor, `!:` or `BREAKING CHANGE` -> major, else
   patch). A change that renames or removes an image, a tag scheme, an environment variable, a

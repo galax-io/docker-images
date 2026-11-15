@@ -31,6 +31,13 @@ ENV HOME=/home/sbtuser \
               -Dsbt.global.base=/home/sbtuser/.sbt \
               -Dcoursier.cache=/home/sbtuser/.cache/coursier/v1"
 
+# The step below writes the galaxio CLI into /usr/local/bin, which only root can write to.
+# The line is explicit, not needed: the base image's configuration (field User) already
+# says root, so with this base it changes nothing; it keeps the step on root if that
+# default ever changes.
+# The stage drops to sbtuser right after: the warmup and its caches belong to sbtuser.
+# The binary stays in this stage: the final stage copies only sbt, scala and the warmed
+# caches from here, and base-jdk (java.Dockerfile) brings its own galaxio.
 USER root
 RUN curl -fsSL \
       "https://github.com/galax-io/galaxio-cli/releases/download/v${GALAXIO_CLI_VERSION}/galaxio_${GALAXIO_CLI_VERSION}_linux_amd64.tar.gz" \

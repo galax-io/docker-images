@@ -139,6 +139,8 @@ assert_file_not_contains "${err_file}" "good-two.sh"
 assert_equals "1" "$(grep -c -F 'bad-one.sh' "${err_file}")" "the lines naming bad-one.sh"
 assert_equals "1" "$(grep -c -F 'bad-two.sh' "${err_file}")" "the lines naming bad-two.sh"
 assert_equals "3" "$(grep -c . "${err_file}")" "the non-empty stderr lines (two offenders and a summary)"
+last_line="$(tail -n 1 "${err_file}")"
+[[ "${last_line}" != *bad-one.sh* && "${last_line}" != *bad-two.sh* ]] || fail "expected the summary as the last stderr line, got '${last_line}'"
 printf 'PASS: FR-004: a mixed directory names only the offenders, one line each, then a summary, exit 1\n'
 
 # FR-003: files that are not *.sh are ignored.
@@ -251,15 +253,16 @@ assert_file_contains "${CHECKER}" "set -euo pipefail"
 if command -v shellcheck >/dev/null 2>&1; then
   shellcheck --severity=warning "${CHECKER}" || fail "ShellCheck found warnings in the checker"
   shellcheck --severity=warning "$0" || fail "ShellCheck found warnings in this test"
+  printf 'PASS: FR-006: the checker is bash with set -euo pipefail, carries its own header and is ShellCheck-clean\n'
 else
-  printf 'SKIP: shellcheck is not installed\n'
+  printf 'SKIP: FR-006: shellcheck is not installed, ShellCheck-clean not checked\n'
+  printf 'PASS: FR-006: the checker is bash with set -euo pipefail and carries its own header\n'
 fi
-printf 'PASS: FR-006: the checker is bash with set -euo pipefail, carries its own header and is ShellCheck-clean\n'
 
 # FR-003: with no argument the checker looks at resources/ and .github/scripts/ found from its own location,
 # whatever the working directory, and leaves the other directories alone (FR-002).
 fake_repo="$(new_dir)"
-mkdir -p "${fake_repo}/.github/scripts" "${fake_repo}/resources/nested" "${fake_repo}/scripts" "${fake_repo}/.githooks" \
+mkdir -p "${fake_repo}/.github/scripts/nested" "${fake_repo}/resources/nested" "${fake_repo}/scripts" "${fake_repo}/.githooks" \
   "${fake_repo}/.claude" "${fake_repo}/.specify" "${fake_repo}/tests"
 cp "${CHECKER}" "${fake_repo}/.github/scripts/check-spdx-headers.sh"
 printf '#!/usr/bin/env sh\n%s\n' "${HEADER}" > "${fake_repo}/resources/good.sh"
@@ -284,6 +287,11 @@ printf '#!/usr/bin/env bash\necho no header\n' > "${fake_repo}/resources/nested/
 run_default "${tmpdir}"
 assert_fails
 assert_file_contains "${err_file}" "resources/nested/headerless.sh"
+rm "${fake_repo}/resources/nested/headerless.sh"
+printf '#!/usr/bin/env bash\necho no header\n' > "${fake_repo}/.github/scripts/nested/headerless.sh"
+run_default "${tmpdir}"
+assert_fails
+assert_file_contains "${err_file}" ".github/scripts/nested/headerless.sh"
 printf 'PASS: FR-003: with no argument the checker covers resources/ and .github/scripts/ from its own location, nothing else\n'
 
 # FR-002, FR-009, SC-001, SC-002: the repository's own scripts pass, and removing the header from either of the two
@@ -318,7 +326,12 @@ job_file="${tmpdir}/job-block"
 printf '%s' "${job_block}" > "${job_file}"
 assert_file_contains "${job_file}" "runs-on: ubuntu-24.04"
 assert_file_contains "${job_file}" "contents: read"
-assert_file_contains "${job_file}" "uses: actions/checkout@v7"
+shellcheck_job_checkout="$(awk '
+  /^  [A-Za-z0-9_-]+:[[:space:]]*$/ { in_job = ($1 == "shellcheck:") }
+  in_job && /uses: actions\/checkout@/ { print $NF; exit }
+' "${WORKFLOW}")"
+[[ -n "${shellcheck_job_checkout}" ]] || fail "expected a checkout step in the ShellCheck job"
+assert_file_contains "${job_file}" "uses: ${shellcheck_job_checkout}"
 assert_file_contains "${job_file}" "bash tests/test_check_spdx_headers.sh"
 assert_file_contains "${job_file}" "bash .github/scripts/check-spdx-headers.sh"
 test_line="$(grep -n -F 'bash tests/test_check_spdx_headers.sh' "${job_file}" | head -1 | cut -d: -f1)"

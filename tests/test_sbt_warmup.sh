@@ -285,6 +285,14 @@ EOF
   printf 'PASS: existing paths are preserved and new paths are cleaned up\n'
 }
 
+run_spdx_header_case() {
+  header='# SPDX-License-Identifier: Apache-2.0'
+  [ "$(sed -n 1p "${SCRIPT}")" = '#!/usr/bin/env sh' ] || fail "expected the shebang of ${SCRIPT} to stay on line 1"
+  [ "$(sed -n 2p "${SCRIPT}")" = "${header}" ] || fail "expected '${header}' on line 2 of ${SCRIPT}"
+  printf 'PASS: FR-008: sbt-warmup.sh carries the SPDX header under its shebang\n'
+}
+
 run_case "local bootstrap defaults" "" "gatling/scala-sbt" "https://example.invalid/templates-gatling.tar.gz" "local:./warmup-registry"
 run_case "custom registry and template" "local:/tmp/custom-registry" "custom/scala-sbt" "" "local:/tmp/custom-registry"
 run_preserve_existing_paths_case
+run_spdx_header_case

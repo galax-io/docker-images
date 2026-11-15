@@ -80,3 +80,10 @@ printf 'PASS: buildkit helper multi-tag output\n'
 assert_file_contains "${args_file}" "push=false"
 
 printf 'PASS: buildkit helper respects PUSH_IMAGE=false\n'
+
+spdx_header='# SPDX-License-Identifier: Apache-2.0'
+[[ "$(sed -n 1p "${SCRIPT}")" == '#!/usr/bin/env bash' ]] || fail "expected the shebang of ${SCRIPT} to stay on line 1"
+[[ "$(sed -n 2p "${SCRIPT}")" == "${spdx_header}" ]] || fail "expected '${spdx_header}' on line 2 of ${SCRIPT}"
+[[ -x "${SCRIPT}" ]] || fail "expected ${SCRIPT} to stay executable"
+
+printf 'PASS: FR-008: buildkit helper carries the SPDX header under its shebang\n'

@@ -31,6 +31,10 @@ ENV HOME=/home/sbtuser \
               -Dsbt.global.base=/home/sbtuser/.sbt \
               -Dcoursier.cache=/home/sbtuser/.cache/coursier/v1"
 
+# Root for this one step only. The official sbt image runs as sbtuser, and the
+# warmup needs the galaxio CLI in /usr/local/bin, which only root can write to
+# (curl is already in the image). The binary stays in this stage: the final stage
+# copies only sbt, scala and the warmed caches, and base-jdk brings its own galaxio.
 USER root
 RUN curl -fsSL \
       "https://github.com/galax-io/galaxio-cli/releases/download/v${GALAXIO_CLI_VERSION}/galaxio_${GALAXIO_CLI_VERSION}_linux_amd64.tar.gz" \

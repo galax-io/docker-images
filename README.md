@@ -4,15 +4,25 @@ Production-oriented container images for the Galaxio team.
 
 ## Images
 
-This repo does not build a standalone minimal/distroless base image. The root
-of the image hierarchy, `galaxioteam/galaxio`, is built externally in
-[galax-io/galaxio-cli](https://github.com/galax-io/galaxio-cli) and always
-tracks `latest`; the Dockerfiles below build on top of it.
+Every image here is built on `debian:bookworm-slim`, through this chain:
+
+```text
+java.Dockerfile  (galaxioteam/base-jdk, debian:bookworm-slim + JDK)
+└── gatling-{sbt,maven,gradle}-builder.Dockerfile
+    └── gatling-runtime.Dockerfile
+        └── gatling-debug.Dockerfile
+```
+
+This repo does not build a distroless or other minimal-userspace base image.
+`galaxioteam/galaxio`, the image of
+[galax-io/galaxio-cli](https://github.com/galax-io/galaxio-cli), is not a
+parent of any image here.
 
 ### `java.Dockerfile`
 
 Hardened Java 21 JDK image:
 
+- `debian:bookworm-slim` with `bash`, `ca-certificates` and `curl` added
 - full JDK copied from Eclipse Temurin
 - non-root by default
 - UTF-8 defaults baked in
@@ -27,7 +37,7 @@ docker build -f java.Dockerfile -t galaxioteam/java:local .
 
 Builder image for Scala Gatling projects:
 
-- based on `sbtscala/scala-sbt`
+- warms the caches in a `sbtscala/scala-sbt` stage; the final image is `galaxioteam/base-jdk` (Debian bookworm-slim)
 - warms `sbt` and Coursier caches
 - installs `galaxio-cli`
 - warms dependencies by rendering `gatling/scala-sbt` from the Galaxio template registry
@@ -70,7 +80,7 @@ fail at the `sha256sum -c` step before any binary is extracted.
 
 Builder image for Gatling Maven projects:
 
-- based on official Maven + Temurin
+- warms the caches in an official Maven + Temurin stage; the final image is `galaxioteam/base-jdk` (Debian bookworm-slim)
 - warms the local `.m2` repository with Gatling 3.13 dependencies
 - intended for Java/Kotlin/Scala Maven projects
 
@@ -84,7 +94,7 @@ docker build -f gatling-maven-builder.Dockerfile -t galaxioteam/gatling-maven-bu
 
 Builder image for Gatling Gradle projects:
 
-- based on official Gradle + JDK 21
+- warms the caches in an official Gradle + JDK 21 stage; the final image is `galaxioteam/base-jdk` (Debian bookworm-slim)
 - warms the Gradle cache with Gatling 3.13 dependencies
 - intended for Java/Kotlin/Scala Gradle projects
 
@@ -96,18 +106,15 @@ docker build -f gatling-gradle-builder.Dockerfile -t galaxioteam/gatling-gradle-
 
 ### `gatling-runtime.Dockerfile`
 
-Hardened Gatling 3.13 runtime image:
+Gatling 3.13 runtime image, built on top of a builder image (`BUILDER_IMAGE`, `gatling-sbt-builder` by default). Its base is therefore Debian (`debian:bookworm-slim`, through `galaxioteam/base-jdk`):
 
-- distroless final image
-- non-root user
+- not distroless: it keeps `bash` and starts through `/bin/bash -c`
+- non-root user, inherited from the builder image
 - offline Maven cache warmed at build time
-- tiny BusyBox userspace instead of a full Debian/Ubuntu userspace
 
-Why not fully distroless-only?
+Why not distroless?
 
-Gatling `3.13.x` ships as a Maven-wrapper-based bundle. Running the official bundle requires a shell and a few POSIX utilities because `mvnw` is a shell script. The runtime image therefore uses:
-
-- tiny BusyBox userspace instead of a full Debian/Ubuntu userspace
+Gatling `3.13.x` ships as a Maven-wrapper-based bundle. Running the official bundle requires a shell and a few POSIX utilities because `mvnw` is a shell script. The runtime image therefore keeps the Debian userspace of its builder image.
 
 Build runtime:
 
@@ -157,7 +164,7 @@ For production and CI usage, prefer the following split:
 ## Main improvements versus the previous setup
 
 - removed `apt-get upgrade` from image builds
-- stopped copying a near-complete Ubuntu userspace into a distroless image
+- stopped copying a near-complete Ubuntu userspace into the base image
 - made the base image truly minimal
 - made Java runtime images non-root by default
 - split Gatling images by builder tool: `sbt`, `maven`, `gradle`

@@ -25,3 +25,18 @@ jobs:
           severity: warning
           # The Spec Kit kit is generated in spec-kit-galaxio-bootstrap and shipped as it is.
           ignore_paths: .specify
+
+  spdx:
+    name: SPDX headers
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+
+      - name: Test the header check
+        run: bash tests/test_check_spdx_headers.sh
+
+      - name: Require the SPDX header in the repository's own shell scripts
+        run: bash .github/scripts/check-spdx-headers.sh
